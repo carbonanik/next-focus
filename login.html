@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>NextFocus — Sign in</title>
+  <link rel="stylesheet" href="shared.css" />
+  <link rel="stylesheet" href="login.css" />
+</head>
+<body>
+  <main class="auth-shell">
+    <section class="auth-brand">
+      <div class="brand-line"><div class="brand-mark">N</div><strong>NextFocus</strong></div>
+      <h1>Keep your focus. Keep your data.</h1>
+      <p>Sign in to sync goals, tasks, ideas and daily plans to Firebase. Or skip and keep using NextFocus completely offline.</p>
+      <div class="auth-points">
+        <div><span>✓</span><div><strong>Cloud backup</strong><small>Reinstall and restore after signing in again.</small></div></div>
+        <div><span>✓</span><div><strong>Offline-first</strong><small>Your local cache still works if the network disappears.</small></div></div>
+        <div><span>✓</span><div><strong>No lock-in</strong><small>Firebase sits behind adapters so it can be replaced with your API later.</small></div></div>
+      </div>
+    </section>
+
+    <section class="auth-card">
+      <div class="auth-tabs" role="tablist">
+        <button class="active" data-auth-tab="signin">Sign in</button>
+        <button data-auth-tab="signup">Create account</button>
+      </div>
+
+      <div id="config-warning" class="config-warning hidden">
+        <strong>Firebase setup required</strong>
+        <span>Add your Web API key and project ID in <code>src/infrastructure/firebase.config.js</code>.</span>
+      </div>
+
+      <form id="auth-form">
+        <div class="form-copy">
+          <h2 id="auth-title">Welcome back</h2>
+          <p id="auth-subtitle">Use your email and password to restore and sync your workspace.</p>
+        </div>
+        <label class="label">Email<input class="input" type="email" name="email" autocomplete="email" required placeholder="you@example.com" /></label>
+        <label class="label">Password<input class="input" type="password" name="password" autocomplete="current-password" minlength="6" required placeholder="At least 6 characters" /></label>
+        <div id="auth-error" class="auth-error hidden"></div>
+        <button class="btn auth-submit" id="auth-submit" type="submit">Sign in</button>
+      </form>
+
+      <div class="divider"><span>or</span></div>
+      <button class="skip-button" id="skip-login">Skip — continue offline</button>
+      <p class="offline-note">Offline data stays only on this browser profile and is removed if the extension is uninstalled.</p>
+    </section>
+  </main>
+  <script type="module" src="login.js"></script>
+</body>
+</html>

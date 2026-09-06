@@ -1,9 +1,11 @@
 {
   "manifest_version": 3,
-  "name": "NextFocus — Goal to Action",
-  "version": "1.0.0",
+  "name": "NextFocus \u2014 Goal to Action",
+  "version": "1.1.0",
   "description": "Turn goals into executable actions and focus on one thing today.",
-  "permissions": ["storage"],
+  "permissions": [
+    "storage"
+  ],
   "background": {
     "service_worker": "background.js",
     "type": "module"
@@ -23,5 +25,10 @@
     "32": "assets/icon32.png",
     "48": "assets/icon48.png",
     "128": "assets/icon128.png"
-  }
+  },
+  "host_permissions": [
+    "https://identitytoolkit.googleapis.com/*",
+    "https://securetoken.googleapis.com/*",
+    "https://firestore.googleapis.com/*"
+  ]
 }

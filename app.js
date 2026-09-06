@@ -5,6 +5,8 @@ import {
 } from "./src/application/taskService.js";
 import { TASK_STATUS } from "./src/domain/constants.js";
 import { escapeHtml, formatDate, todayKey } from "./src/shared/utils.js";
+import { authRepository } from "./src/infrastructure/auth.js";
+import { storageRepository } from "./src/infrastructure/storage.js";
 
 const viewEl = document.querySelector("#view");
 const titleEl = document.querySelector("#view-title");
@@ -302,7 +304,35 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") closeModal();
 });
 
-const hash = location.hash;
-if (hash === "#new-task") openTaskModal();
-else if (hash.startsWith("#focus:")) showFocus(hash.slice(7));
-else render("today");
+async function renderAccountArea(access) {
+  const area = $("#account-area");
+  if (!area) return;
+  if (access.mode === "account") {
+    const sync = await storageRepository.getSyncStatus();
+    const pending = sync.pending?.length ?? 0;
+    area.innerHTML = `<div class="account-card"><strong>${escapeHtml(access.session.email || "Signed in")}</strong><span>${pending ? `${pending} section${pending === 1 ? "" : "s"} waiting to sync` : "Firebase sync active"}</span><button id="sign-out">Sign out</button></div>`;
+    $("#sign-out").onclick = async () => {
+      await authRepository.signOut();
+      storageRepository.resetRuntimeState();
+      location.replace("login.html");
+    };
+  } else {
+    area.innerHTML = `<div class="account-card"><strong>Offline mode</strong><span>Stored only on this browser</span><button id="sign-in-cloud">Sign in to sync</button></div>`;
+    $("#sign-in-cloud").onclick = () => location.href = "login.html";
+  }
+}
+
+async function init() {
+  const access = await authRepository.getAccessState();
+  if (access.mode === "none") {
+    location.replace("login.html");
+    return;
+  }
+  await renderAccountArea(access);
+  const hash = location.hash;
+  if (hash === "#new-task") await openTaskModal();
+  else if (hash.startsWith("#focus:")) await showFocus(hash.slice(7));
+  else await render("today");
+}
+
+init();

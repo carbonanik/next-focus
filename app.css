@@ -10,6 +10,11 @@ nav button, .plain { border:0; background:transparent; color:#adbbb1; border-rad
 nav button:hover, nav button.active { background:#243028; color:#fff; }
 kbd { font-family:inherit; font-size:10px; font-weight:800; color:#839187; border:1px solid #405047; border-radius:6px; padding:2px 5px; }
 .sidebar-bottom { margin-top:auto; display:grid; gap:3px; }
+.account-card { margin-bottom:10px; padding:11px 12px; border:1px solid #344239; background:#202a23; border-radius:12px; }
+.account-card strong { display:block; color:#fff; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.account-card span { display:block; margin-top:3px; color:#91a097; font-size:10px; }
+.account-card button { margin-top:9px; padding:0; border:0; background:transparent; color:#c4d1c8; font:inherit; font-size:11px; font-weight:800; cursor:pointer; }
+.account-card button:hover { color:#fff; }
 .content { padding:36px clamp(28px, 5vw, 70px) 64px; max-width:1300px; width:100%; margin:0 auto; }
 .topbar { display:flex; justify-content:space-between; gap:24px; align-items:end; margin-bottom:30px; }
 .date { color:var(--muted); font-size:13px; font-weight:700; }
