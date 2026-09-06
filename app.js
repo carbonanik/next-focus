@@ -7,6 +7,7 @@ import { TASK_STATUS } from "./src/domain/constants.js";
 import { escapeHtml, formatDate, todayKey } from "./src/shared/utils.js";
 import { authRepository } from "./src/infrastructure/auth.js";
 import { storageRepository } from "./src/infrastructure/storage.js";
+import { taskSuggestionProvider } from "./src/infrastructure/aiTaskSuggestionProvider.js";
 
 const viewEl = document.querySelector("#view");
 const titleEl = document.querySelector("#view-title");
@@ -17,6 +18,8 @@ document.querySelector("#app-date").textContent = formatDate();
 
 let currentView = "today";
 let timerHandle = null;
+let taskSuggestions = [];
+let suggestionGoalId = null;
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -116,7 +119,19 @@ function goalCard(goal, tasks) {
     <article class="goal-card">
       <div class="goal-head">
         <div><h3>🎯 ${escapeHtml(goal.title)}</h3><p>${escapeHtml(goal.description)}</p></div>
-        <div class="row-actions"><button class="btn small secondary" data-create-task-for="${goal.id}">+ Task</button><button class="btn small ghost" data-goal-action="edit" data-goal-id="${goal.id}">Edit</button></div>
+        <div class="row-actions">
+          <button
+            class="btn small secondary"
+            data-goal-action="suggest"
+            data-goal-id="${goal.id}">✨ Suggest tasks</button>
+          <button
+            class="btn small secondary"
+            data-create-task-for="${goal.id}">+ Task</button>
+          <button
+            class="btn small ghost"
+            data-goal-action="edit"
+            data-goal-id="${goal.id}">Edit</button>
+        </div>
       </div>
       <div class="progress"><span style="width:${progress}%"></span></div>
       <div class="muted" style="font-size:11px">${progress}% complete · ${remaining} task${remaining === 1 ? "" : "s"} remaining</div>
@@ -254,7 +269,29 @@ function bindCommonActions() {
   $$('[data-create="goal"]').forEach((el) => el.onclick = () => openGoalModal());
   $$('[data-create="idea"]').forEach((el) => el.onclick = () => openIdeaModal());
   $$('[data-create-task-for]').forEach((el) => el.onclick = () => openTaskModal(null, el.dataset.createTaskFor));
-  $$('[data-goal-action="edit"]').forEach((el) => el.onclick = () => openGoalModal(el.dataset.goalId));
+  $$("[data-goal-action]").forEach(
+    (el) => {
+      el.onclick = () => {
+        if (
+          el.dataset.goalAction ===
+          "edit"
+        ) {
+          return openGoalModal(
+            el.dataset.goalId
+          );
+        }
+
+        if (
+          el.dataset.goalAction ===
+          "suggest"
+        ) {
+          return openTaskSuggestions(
+            el.dataset.goalId
+          );
+        }
+      };
+    }
+  );
   $$('[data-idea-action]').forEach((el) => el.onclick = async () => {
     try {
       if (el.dataset.ideaAction === "convert") await convertIdeaToGoal(el.dataset.ideaId);
@@ -320,6 +357,367 @@ async function renderAccountArea(access) {
     area.innerHTML = `<div class="account-card"><strong>Offline mode</strong><span>Stored only on this browser</span><button id="sign-in-cloud">Sign in to sync</button></div>`;
     $("#sign-in-cloud").onclick = () => location.href = "login.html";
   }
+}
+
+function renderTaskSuggestions(goal) {
+  const list = $("#ai-suggestion-list");
+  const actions = $("#ai-suggestion-actions");
+
+  if (!list || !actions) return;
+
+  if (!taskSuggestions.length) {
+    list.innerHTML = `
+      <div class="ai-empty">
+        No suggestions left.
+        You can close this window or suggest a fresh set.
+      </div>
+    `;
+  } else {
+    list.innerHTML = taskSuggestions
+      .map(
+        (suggestion, index) => `
+          <div class="ai-suggestion-row">
+
+            <div class="ai-suggestion-copy">
+
+              <strong>
+                ${escapeHtml(suggestion.title)}
+              </strong>
+
+              <div class="sub">
+                ~${suggestion.estimatedMinutes} min
+                ${suggestion.notes
+            ? ` · ${escapeHtml(suggestion.notes)}`
+            : ""
+          }
+              </div>
+
+            </div>
+
+            <div class="row-actions">
+
+              <button
+                class="btn small"
+                data-ai-action="add"
+                data-index="${index}"
+              >
+                Add
+              </button>
+
+              <button
+                class="btn small ghost"
+                data-ai-action="remove"
+                data-index="${index}"
+              >
+                Remove
+              </button>
+
+            </div>
+
+          </div>
+        `
+      )
+      .join("");
+  }
+
+  actions.innerHTML = `
+    <button
+      type="button"
+      class="btn secondary"
+      id="suggest-again"
+    >
+      Suggest again
+    </button>
+
+    <button
+      type="button"
+      class="btn"
+      id="close-suggestions"
+    >
+      Done
+    </button>
+  `;
+
+  $$(
+    "[data-ai-action]",
+    list
+  ).forEach((button) => {
+    button.onclick = async () => {
+      const index =
+        Number(button.dataset.index);
+
+      const suggestion =
+        taskSuggestions[index];
+
+      if (!suggestion) return;
+
+      if (
+        button.dataset.aiAction ===
+        "remove"
+      ) {
+        taskSuggestions.splice(
+          index,
+          1
+        );
+
+        renderTaskSuggestions(goal);
+
+        return;
+      }
+
+      button.disabled = true;
+      button.textContent =
+        "Adding...";
+
+      try {
+        await createTask({
+          goalId: goal.id,
+
+          title:
+            suggestion.title,
+
+          estimatedMinutes:
+            suggestion.estimatedMinutes,
+
+          notes:
+            suggestion.notes
+        });
+
+        taskSuggestions.splice(
+          index,
+          1
+        );
+
+        renderTaskSuggestions(goal);
+
+        toast("Task added.");
+      } catch (err) {
+        button.disabled = false;
+        button.textContent = "Add";
+
+        toast(
+          err.message,
+          true
+        );
+      }
+    };
+  });
+
+  $("#close-suggestions").onclick =
+    () => {
+      closeModal();
+
+      render("later");
+    };
+
+  $("#suggest-again").onclick =
+    () =>
+      loadTaskSuggestions(
+        goal.id
+      );
+}
+
+async function loadTaskSuggestions(
+  goalId
+) {
+  const state =
+    await getAppState();
+
+  const goal =
+    state.goals.find(
+      (item) =>
+        item.id === goalId
+    );
+
+  if (!goal) return;
+
+  suggestionGoalId =
+    goalId;
+
+  const list =
+    $("#ai-suggestion-list");
+
+  const actions =
+    $("#ai-suggestion-actions");
+
+  if (list) {
+    list.innerHTML = `
+      <div class="ai-loading">
+
+        <span class="ai-spinner"></span>
+
+        <div>
+
+          <strong>
+            Breaking this goal into actions...
+          </strong>
+
+          <span>
+            Looking at the goal and the tasks
+            you already have.
+          </span>
+
+        </div>
+
+      </div>
+    `;
+  }
+
+  if (actions) {
+    actions.innerHTML = `
+      <button
+        type="button"
+        class="btn secondary"
+        id="cancel-ai"
+      >
+        Cancel
+      </button>
+    `;
+  }
+
+  if ($("#cancel-ai")) {
+    $("#cancel-ai").onclick =
+      closeModal;
+  }
+
+  try {
+    taskSuggestions =
+      await taskSuggestionProvider
+        .suggestTasks({
+          goal,
+
+          existingTasks:
+            state.tasks.filter(
+              (task) =>
+                task.goalId ===
+                goal.id &&
+                task.status !==
+                TASK_STATUS.DONE
+            )
+        });
+
+    if (
+      suggestionGoalId !==
+      goalId
+    ) {
+      return;
+    }
+
+    renderTaskSuggestions(
+      goal
+    );
+  } catch (err) {
+    if (!list) return;
+
+    list.innerHTML = `
+      <div class="ai-error">
+
+        <strong>
+          Couldn’t suggest tasks
+        </strong>
+
+        <span>
+          ${escapeHtml(err.message)}
+        </span>
+
+      </div>
+    `;
+
+    if (actions) {
+      actions.innerHTML = `
+        <button
+          type="button"
+          class="btn secondary"
+          id="close-ai-error"
+        >
+          Close
+        </button>
+
+        <button
+          type="button"
+          class="btn"
+          id="retry-ai"
+        >
+          Retry
+        </button>
+      `;
+    }
+
+    if ($("#close-ai-error")) {
+      $("#close-ai-error").onclick =
+        closeModal;
+    }
+
+    if ($("#retry-ai")) {
+      $("#retry-ai").onclick =
+        () =>
+          loadTaskSuggestions(
+            goalId
+          );
+    }
+  }
+}
+
+
+async function openTaskSuggestions(
+  goalId
+) {
+  const state =
+    await getAppState();
+
+  const goal =
+    state.goals.find(
+      (item) =>
+        item.id === goalId
+    );
+
+  if (!goal) {
+    return toast(
+      "Goal not found.",
+      true
+    );
+  }
+
+  taskSuggestions = [];
+
+  suggestionGoalId =
+    goalId;
+
+  openModal(`
+    <div class="ai-modal-head">
+
+      <div class="ai-badge">
+        AI
+      </div>
+
+      <div>
+
+        <h2>
+          Suggest tasks
+        </h2>
+
+        <p>
+          ${escapeHtml(goal.title)}
+        </p>
+
+      </div>
+
+    </div>
+
+    <div
+      id="ai-suggestion-list"
+      class="ai-suggestion-list"
+    ></div>
+
+    <div
+      id="ai-suggestion-actions"
+      class="modal-actions"
+    ></div>
+  `);
+
+  await loadTaskSuggestions(
+    goalId
+  );
 }
 
 async function init() {
