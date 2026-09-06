@@ -1,0 +1,36 @@
+:root {
+  color-scheme: light;
+  --bg: #f6f7f2;
+  --surface: #ffffff;
+  --surface-2: #f0f2eb;
+  --text: #182018;
+  --muted: #687168;
+  --border: #dfe4da;
+  --accent: #1f6f4a;
+  --accent-soft: #e4f2e9;
+  --danger: #a13b32;
+  --warning: #8a6417;
+  --shadow: 0 14px 38px rgba(33, 50, 39, .08);
+  --radius: 18px;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
+button, input, textarea, select { font: inherit; }
+button { cursor: pointer; }
+.btn { border: 0; border-radius: 12px; padding: 10px 14px; background: var(--text); color: white; font-weight: 700; transition: transform .15s ease, opacity .15s ease; }
+.btn:hover { transform: translateY(-1px); }
+.btn.secondary { background: var(--surface-2); color: var(--text); }
+.btn.ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+.btn.danger { background: #f6e8e6; color: var(--danger); }
+.btn.small { padding: 7px 10px; border-radius: 10px; font-size: 12px; }
+.input, .select, .textarea { width: 100%; border: 1px solid var(--border); border-radius: 12px; padding: 11px 12px; background: #fff; color: var(--text); outline: none; }
+.input:focus, .select:focus, .textarea:focus { border-color: #94b8a1; box-shadow: 0 0 0 3px rgba(31, 111, 74, .08); }
+.label { display: grid; gap: 7px; font-size: 12px; font-weight: 700; color: var(--muted); }
+.badge { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; padding: 5px 9px; font-size: 11px; font-weight: 800; background: var(--surface-2); color: var(--muted); }
+.badge.blocked { background: #fff1e0; color: var(--warning); }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+.muted { color: var(--muted); }
+.empty { border: 1px dashed #cbd3c7; background: rgba(255,255,255,.55); border-radius: 18px; padding: 24px; text-align: center; color: var(--muted); }
+.toast { position: fixed; right: 24px; bottom: 24px; max-width: 360px; padding: 12px 15px; border-radius: 12px; background: #172019; color: #fff; box-shadow: var(--shadow); z-index: 999; animation: toastIn .2s ease; }
+.toast.error { background: #7c2822; }
+@keyframes toastIn { from { transform: translateY(8px); opacity: 0; } }

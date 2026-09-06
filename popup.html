@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>NextFocus</title>
+  <link rel="stylesheet" href="shared.css" />
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <main class="popup-shell">
+    <header>
+      <div>
+        <div class="eyebrow">TODAY</div>
+        <h1 id="popup-date">Focus</h1>
+      </div>
+      <button class="icon-btn" id="open-app" title="Open full app">↗</button>
+    </header>
+    <section id="popup-main"></section>
+    <section class="next-mini">
+      <div class="section-head"><span>Next</span><span id="next-count" class="muted"></span></div>
+      <div id="popup-next"></div>
+    </section>
+    <button class="capture" id="quick-capture">+ Add task</button>
+  </main>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

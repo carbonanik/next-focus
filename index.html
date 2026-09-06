@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>NextFocus</title>
+  <link rel="stylesheet" href="shared.css" />
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">N</div><div><strong>NextFocus</strong><span>Goal → action</span></div></div>
+      <nav id="nav">
+        <button data-view="today" class="active"><span>Today</span><kbd>T</kbd></button>
+        <button data-view="next"><span>Next</span><kbd>X</kbd></button>
+        <button data-view="later"><span>Later</span><kbd>L</kbd></button>
+        <button data-view="ideas"><span>Ideas</span><kbd>I</kbd></button>
+      </nav>
+      <div class="sidebar-bottom">
+        <button id="history-btn" class="plain">History</button>
+        <button id="search-btn" class="plain">Search <kbd>⌘K</kbd></button>
+      </div>
+    </aside>
+    <main class="content">
+      <header class="topbar">
+        <div><div class="date" id="app-date"></div><h1 id="view-title">Today</h1></div>
+        <div class="top-actions"><button class="btn secondary" id="new-goal">+ Goal</button><button class="btn" id="new-task">+ Task</button></div>
+      </header>
+      <div id="view"></div>
+    </main>
+  </div>
+
+  <div class="modal-backdrop hidden" id="modal-backdrop">
+    <section class="modal" id="modal"></section>
+  </div>
+  <div id="toast-root"></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

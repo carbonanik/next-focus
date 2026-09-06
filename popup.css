@@ -1,0 +1,17 @@
+body { width: 380px; min-height: 520px; }
+.popup-shell { padding: 20px; }
+header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+.eyebrow { font-size: 11px; letter-spacing: .14em; font-weight: 900; color: var(--accent); }
+h1 { margin: 4px 0 0; font-size: 20px; }
+.icon-btn { width: 38px; height: 38px; border-radius: 12px; border: 1px solid var(--border); background: #fff; font-size: 18px; }
+.main-task { padding: 20px; background: var(--text); color: white; border-radius: 20px; box-shadow: var(--shadow); }
+.main-task .goal { color: #c6d6cb; font-size: 12px; font-weight: 700; }
+.main-task h2 { font-size: 22px; line-height: 1.18; margin: 10px 0 7px; }
+.main-task .meta { color: #bdc8c0; font-size: 12px; }
+.main-task .btn { width: 100%; margin-top: 18px; background: #f3f7f1; color: #172019; }
+.empty-main { padding: 22px; border-radius: 18px; background: #fff; border: 1px dashed var(--border); text-align: center; }
+.next-mini { margin-top: 20px; }
+.section-head { display:flex; justify-content:space-between; font-weight:800; font-size:12px; margin-bottom:8px; }
+.next-row { display:flex; align-items:center; gap:10px; padding:11px 0; border-bottom:1px solid var(--border); font-size:13px; }
+.next-row .index { width:22px; height:22px; border-radius:8px; background:var(--surface-2); display:grid; place-items:center; color:var(--muted); font-weight:800; font-size:11px; }
+.capture { width:100%; margin-top:18px; border:1px solid var(--border); border-radius:12px; background:#fff; padding:11px; color:var(--accent); font-weight:800; }
