@@ -17,12 +17,26 @@ function normalizeTaskStatus(task, allTasks) {
 export async function getAppState() {
   const state = await storageRepository.loadAll();
   state.tasks = state.tasks.map((task) => ({ ...task, status: normalizeTaskStatus(task, state.tasks) }));
+  const currentKey = todayKey();
+  let plansChanged = false;
+  for (const [key, plan] of Object.entries(state.plans)) {
+    if (key >= currentKey || !plan.mainTaskId) continue;
+    const task = state.tasks.find((candidate) => candidate.id === plan.mainTaskId);
+    if (task && task.status !== TASK_STATUS.DONE && task.status !== TASK_STATUS.BLOCKED) {
+      task.status = normalizeTaskStatus({ ...task, status: TASK_STATUS.READY }, state.tasks);
+    }
+    plan.mainTaskId = null;
+    plansChanged = true;
+  }
+  if (plansChanged) {
+    await Promise.all([storageRepository.saveTasks(state.tasks), storageRepository.savePlans(state.plans)]);
+  }
   return state;
 }
 
 export async function createGoal({ title, description, deadline = "", notes = "" }) {
   const goals = await storageRepository.getGoals();
-  const goal = { id: uid("goal"), title: title.trim(), description: description.trim(), deadline, notes: notes.trim(), status: "ACTIVE", createdAt: now(), completedAt: null };
+  const goal = { id: uid("goal"), title: title.trim(), description: description.trim(), deadline, notes: notes.trim(), status: "ACTIVE", collapsed: false, createdAt: now(), completedAt: null };
   goals.push(goal);
   await storageRepository.saveGoals(goals);
   return goal;
@@ -114,6 +128,20 @@ export async function makeToday(taskId) {
   plan.quickTaskIds = (plan.quickTaskIds ?? []).filter((id) => id !== taskId);
   plans[key] = plan;
   task.status = TASK_STATUS.TODAY;
+  await Promise.all([storageRepository.saveTasks(tasks), storageRepository.savePlans(plans)]);
+}
+
+export async function removeToday(taskId) {
+  const [tasks, plans] = await Promise.all([storageRepository.getTasks(), storageRepository.getPlans()]);
+  const task = tasks.find((candidate) => candidate.id === taskId);
+  if (!task) throw new Error("Task not found.");
+  const key = todayKey();
+  const plan = plans[key];
+  if (!plan || plan.mainTaskId !== taskId) return;
+  plan.mainTaskId = null;
+  if (task.status !== TASK_STATUS.DONE && task.status !== TASK_STATUS.BLOCKED) {
+    task.status = TASK_STATUS.NEXT;
+  }
   await Promise.all([storageRepository.saveTasks(tasks), storageRepository.savePlans(plans)]);
 }
 

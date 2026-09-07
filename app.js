@@ -1,7 +1,7 @@
 import {
   addQuickTask, blockTask, completeTask, convertIdeaToGoal, createGoal, createIdea, createTask,
   deleteGoal, deleteIdea, deleteTask, getAppState, goalFrontier, goalProgress, makeToday,
-  promoteToNext, recommendation, removeFromNext, removeQuickTask, startTask, unblockTask, updateGoal, updateTask
+  promoteToNext, recommendation, removeFromNext, removeQuickTask, removeToday, startTask, unblockTask, updateGoal, updateTask
 } from "./src/application/taskService.js";
 import { TASK_STATUS } from "./src/domain/constants.js";
 import { escapeHtml, formatDate, todayKey } from "./src/shared/utils.js";
@@ -69,6 +69,7 @@ function renderToday(state) {
       <div class="actions">
         <button class="btn ghost" data-task-action="edit" data-task-id="${main.id}">Edit</button>
         <button class="btn primary-light" data-task-action="start" data-task-id="${main.id}">${main.status === TASK_STATUS.IN_PROGRESS ? "Resume" : "Start"}</button>
+        <button class="btn ghost" data-task-action="remove-today" data-task-id="${main.id}">Remove focus</button>
       </div>
     </section>` : `
     <section class="empty">
@@ -91,11 +92,16 @@ function renderToday(state) {
 
 function renderNext(state) {
   const goals = new Map(state.goals.map((g) => [g.id, g]));
-  const tasks = state.tasks.filter((t) => t.status === TASK_STATUS.NEXT);
+  const plan = state.plans[todayKey()] ?? { mainTaskId: null, quickTaskIds: [] };
+  const tasks = state.tasks.filter((t) => t.status === TASK_STATUS.NEXT || t.id === plan.mainTaskId);
   viewEl.innerHTML = `
     <div class="section-title"><div><h2>Your prepared queue</h2><div class="muted" style="font-size:12px;margin-top:4px">Ready to execute. Keep it small and intentional.</div></div><span class="badge">${tasks.length}/7</span></div>
     <div class="queue">
-      ${tasks.length ? tasks.map((t, i) => `<div class="row"><div class="queue-index">${i + 1}</div><div class="grow"><div class="title">${escapeHtml(t.title)}</div><div class="sub">${escapeHtml(goals.get(t.goalId)?.title ?? "Goal")}${t.estimatedMinutes ? ` · ~${t.estimatedMinutes} min` : ""}</div></div><div class="row-actions"><button class="btn small" data-task-action="today" data-task-id="${t.id}">Make today</button><button class="btn small secondary" data-task-action="quick" data-task-id="${t.id}">Quick</button><button class="btn small ghost" data-task-action="remove-next" data-task-id="${t.id}">Later</button></div></div>`).join("") : `<div class="empty">Your queue is empty.<br><br><button class="btn" data-go="later">Browse Goals</button></div>`}
+      ${tasks.length ? tasks.map((t, i) => {
+        const isMain = plan.mainTaskId === t.id;
+        const isQuick = (plan.quickTaskIds ?? []).includes(t.id);
+        return `<div class="row"><div class="queue-index">${i + 1}</div><div class="grow"><div class="title">${escapeHtml(t.title)}</div><div class="sub">${escapeHtml(goals.get(t.goalId)?.title ?? "Goal")}${t.estimatedMinutes ? ` · ~${t.estimatedMinutes} min` : ""}</div></div><div class="row-actions"><button class="btn small" data-task-action="${isMain ? "remove-today" : "today"}" data-task-id="${t.id}">${isMain ? "Remove today's focus" : "Make today"}</button>${isMain ? "" : `<button class="btn small secondary" data-task-action="${isQuick ? "remove-quick" : "quick"}" data-task-id="${t.id}">${isQuick ? "Remove from quick" : "Quick"}</button><button class="btn small ghost" data-task-action="remove-next" data-task-id="${t.id}">Later</button>`}</div></div>`;
+      }).join("") : `<div class="empty">Your queue is empty.<br><br><button class="btn" data-go="later">Browse Goals</button></div>`}
     </div>`;
   bindCommonActions();
 }
@@ -115,11 +121,19 @@ function goalCard(goal, tasks) {
   const remaining = goalTasks.filter((t) => t.status !== TASK_STATUS.DONE).length;
   const progress = goalProgress(goal.id, tasks);
   const frontier = goalFrontier(goal.id, tasks);
+  const collapsed = goal.collapsed === true;
   return `
     <article class="goal-card">
       <div class="goal-head">
         <div><h3>🎯 ${escapeHtml(goal.title)}</h3><p>${escapeHtml(goal.description)}</p></div>
         <div class="row-actions">
+          <button
+            class="btn small ghost goal-collapse"
+            data-goal-action="toggle-collapse"
+            data-goal-id="${goal.id}"
+            aria-expanded="${!collapsed}"
+            aria-controls="goal-content-${goal.id}"
+            title="${collapsed ? "Expand goal" : "Collapse goal"}">${collapsed ? "Expand goal" : "Collapse goal"}</button>
           <button
             class="btn small secondary"
             data-goal-action="suggest"
@@ -133,11 +147,13 @@ function goalCard(goal, tasks) {
             data-goal-id="${goal.id}">Edit</button>
         </div>
       </div>
-      <div class="progress"><span style="width:${progress}%"></span></div>
-      <div class="muted" style="font-size:11px">${progress}% complete · ${remaining} task${remaining === 1 ? "" : "s"} remaining</div>
-      ${frontier ? `<div class="frontier"><div><div class="muted">CURRENT FRONTIER</div><strong>→ ${escapeHtml(frontier.title)}</strong></div><div class="row-actions">${frontier.status === TASK_STATUS.READY || frontier.status === TASK_STATUS.BACKLOG ? `<button class="btn small" data-task-action="next" data-task-id="${frontier.id}">Add to NEXT</button>` : ""}${frontier.status === TASK_STATUS.BLOCKED ? `<span class="badge blocked">Blocked</span>` : ""}</div></div>` : ""}
-      <div class="goal-tasks">
-        ${goalTasks.length ? goalTasks.map((t) => taskLine(t)).join("") : `<div class="muted" style="font-size:12px;padding:10px 2px">No tasks yet. Break this goal into executable actions.</div>`}
+      <div id="goal-content-${goal.id}" class="goal-content"${collapsed ? " hidden" : ""}>
+        <div class="progress"><span style="width:${progress}%"></span></div>
+        <div class="muted" style="font-size:11px">${progress}% complete · ${remaining} task${remaining === 1 ? "" : "s"} remaining</div>
+        ${frontier ? `<div class="frontier"><div><div class="muted">CURRENT FRONTIER</div><strong>→ ${escapeHtml(frontier.title)}</strong></div><div class="row-actions">${frontier.status === TASK_STATUS.READY || frontier.status === TASK_STATUS.BACKLOG ? `<button class="btn small" data-task-action="next" data-task-id="${frontier.id}">Add to NEXT</button>` : ""}${frontier.status === TASK_STATUS.BLOCKED ? `<span class="badge blocked">Blocked</span>` : ""}</div></div>` : ""}
+        <div class="goal-tasks">
+          ${goalTasks.length ? goalTasks.map((t) => taskLine(t)).join("") : `<div class="muted" style="font-size:12px;padding:10px 2px">No tasks yet. Break this goal into executable actions.</div>`}
+        </div>
       </div>
     </article>`;
 }
@@ -246,6 +262,14 @@ async function openBlockModal(taskId) {
   $("#block-form").onsubmit = async (e) => { e.preventDefault(); const { reason } = Object.fromEntries(new FormData(e.currentTarget)); await blockTask(taskId, reason); closeModal(); render(currentView); };
 }
 
+async function toggleGoalCollapse(goalId) {
+  const state = await getAppState();
+  const goal = state.goals.find((item) => item.id === goalId);
+  if (!goal) return;
+  await updateGoal(goalId, { collapsed: goal.collapsed !== true });
+  await render(currentView);
+}
+
 async function showFocus(taskId) {
   if (timerHandle) clearInterval(timerHandle);
   const state = await getAppState();
@@ -281,6 +305,10 @@ function bindCommonActions() {
           );
         }
 
+        if (el.dataset.goalAction === "toggle-collapse") {
+          return toggleGoalCollapse(el.dataset.goalId).catch((err) => toast(err.message, true));
+        }
+
         if (
           el.dataset.goalAction ===
           "suggest"
@@ -306,6 +334,7 @@ function bindCommonActions() {
         case "next": await promoteToNext(id); break;
         case "remove-next": await removeFromNext(id); break;
         case "today": await makeToday(id); break;
+        case "remove-today": await removeToday(id); break;
         case "quick": await addQuickTask(id); break;
         case "remove-quick": await removeQuickTask(id); break;
         case "complete": await completeTask(id); break;

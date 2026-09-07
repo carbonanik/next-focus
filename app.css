@@ -291,6 +291,14 @@ h1 {
   align-items: start;
 }
 
+.goal-collapse {
+  white-space: nowrap;
+}
+
+.goal-content[hidden] {
+  display: none;
+}
+
 .goal-card h3 {
   margin: 0;
   font-size: 18px;
