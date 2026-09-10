@@ -67,6 +67,7 @@ function renderToday(state) {
         <div class="meta"><span>${escapeHtml(goals.get(main.goalId)?.title ?? "Goal")}</span>${main.estimatedMinutes ? `<span>• ~${main.estimatedMinutes} min</span>` : ""}${main.status === TASK_STATUS.IN_PROGRESS ? `<span>• In progress</span>` : ""}</div>
       </div>
       <div class="actions">
+        <button class="btn ghost" data-task-action="info" data-task-id="${main.id}">Info</button>
         <button class="btn ghost" data-task-action="edit" data-task-id="${main.id}">Edit</button>
         <button class="btn primary-light" data-task-action="start" data-task-id="${main.id}">${main.status === TASK_STATUS.IN_PROGRESS ? "Resume" : "Start"}</button>
         <button class="btn ghost" data-task-action="remove-today" data-task-id="${main.id}">Remove focus</button>
@@ -83,7 +84,7 @@ function renderToday(state) {
     <section class="section">
       <div class="section-title"><h2>Quick</h2><span class="muted" style="font-size:12px">${quick.length}/3</span></div>
       <div class="quick-list">
-        ${quick.length ? quick.map((t) => `<div class="row"><div class="grow"><div class="title">${escapeHtml(t.title)}</div><div class="sub">${escapeHtml(goals.get(t.goalId)?.title ?? "Goal")}</div></div><div class="row-actions"><button class="btn small secondary" data-task-action="complete" data-task-id="${t.id}">Complete</button><button class="btn small ghost" data-task-action="remove-quick" data-task-id="${t.id}">Remove</button></div></div>`).join("") : `<div class="muted" style="font-size:13px;padding:4px 2px">Optional. Keep these small so they never compete with your main task.</div>`}
+        ${quick.length ? quick.map((t) => `<div class="row"><div class="grow"><div class="title">${escapeHtml(t.title)}</div><div class="sub">${escapeHtml(goals.get(t.goalId)?.title ?? "Goal")}</div></div><div class="row-actions"><button class="btn small ghost" data-task-action="info" data-task-id="${t.id}">Info</button><button class="btn small secondary" data-task-action="complete" data-task-id="${t.id}">Complete</button><button class="btn small ghost" data-task-action="remove-quick" data-task-id="${t.id}">Remove</button></div></div>`).join("") : `<div class="muted" style="font-size:13px;padding:4px 2px">Optional. Keep these small so they never compete with your main task.</div>`}
       </div>
     </section>`;
 
@@ -100,7 +101,7 @@ function renderNext(state) {
       ${tasks.length ? tasks.map((t, i) => {
         const isMain = plan.mainTaskId === t.id;
         const isQuick = (plan.quickTaskIds ?? []).includes(t.id);
-        return `<div class="row"><div class="queue-index">${i + 1}</div><div class="grow"><div class="title">${escapeHtml(t.title)}</div><div class="sub">${escapeHtml(goals.get(t.goalId)?.title ?? "Goal")}${t.estimatedMinutes ? ` · ~${t.estimatedMinutes} min` : ""}</div></div><div class="row-actions"><button class="btn small" data-task-action="${isMain ? "remove-today" : "today"}" data-task-id="${t.id}">${isMain ? "Remove today's focus" : "Make today"}</button>${isMain ? "" : `<button class="btn small secondary" data-task-action="${isQuick ? "remove-quick" : "quick"}" data-task-id="${t.id}">${isQuick ? "Remove from quick" : "Quick"}</button><button class="btn small ghost" data-task-action="remove-next" data-task-id="${t.id}">Later</button>`}</div></div>`;
+        return `<div class="row"><div class="queue-index">${i + 1}</div><div class="grow"><div class="title">${escapeHtml(t.title)}</div><div class="sub">${escapeHtml(goals.get(t.goalId)?.title ?? "Goal")}${t.estimatedMinutes ? ` · ~${t.estimatedMinutes} min` : ""}</div></div><div class="row-actions"><button class="btn small ghost" data-task-action="info" data-task-id="${t.id}">Info</button><button class="btn small" data-task-action="${isMain ? "remove-today" : "today"}" data-task-id="${t.id}">${isMain ? "Remove today's focus" : "Make today"}</button>${isMain ? "" : `<button class="btn small secondary" data-task-action="${isQuick ? "remove-quick" : "quick"}" data-task-id="${t.id}">${isQuick ? "Remove from quick" : "Quick"}</button><button class="btn small ghost" data-task-action="remove-next" data-task-id="${t.id}">Later</button>`}</div></div>`;
       }).join("") : `<div class="empty">Your queue is empty.<br><br><button class="btn" data-go="later">Browse Goals</button></div>`}
     </div>`;
   bindCommonActions();
@@ -116,14 +117,23 @@ function renderLater(state) {
   bindCommonActions();
 }
 
+function formatDateLabel(value, fallback = "—") {
+  if (!value) return fallback;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? fallback : parsed.toLocaleDateString([], { year: "numeric", month: "short", day: "numeric" });
+}
+
 function goalCard(goal, tasks) {
   const goalTasks = tasks.filter((t) => t.goalId === goal.id);
   const remaining = goalTasks.filter((t) => t.status !== TASK_STATUS.DONE).length;
   const progress = goalProgress(goal.id, tasks);
   const frontier = goalFrontier(goal.id, tasks);
   const collapsed = goal.collapsed === true;
+  const goalStatus = goal.status === "ACTIVE" ? "Active" : goal.status === "DONE" ? "Done" : "Inactive";
+  const goalStatusClass = goal.status === "ACTIVE" ? "active" : goal.status === "DONE" ? "done" : "inactive";
+  const goalCardStateClass = goal.status === "ACTIVE" ? "goal-card-active" : goal.status === "DONE" ? "goal-card-done" : "goal-card-inactive";
   return `
-    <article class="goal-card">
+    <article class="goal-card ${goalCardStateClass}">
       <div class="goal-head">
         <div><h3>🎯 ${escapeHtml(goal.title)}</h3><p>${escapeHtml(goal.description)}</p></div>
         <div class="row-actions">
@@ -134,6 +144,10 @@ function goalCard(goal, tasks) {
             aria-expanded="${!collapsed}"
             aria-controls="goal-content-${goal.id}"
             title="${collapsed ? "Expand goal" : "Collapse goal"}">${collapsed ? "Expand goal" : "Collapse goal"}</button>
+          <button
+            class="btn small secondary"
+            data-goal-action="${goal.status === "ACTIVE" ? "deactivate" : "activate"}"
+            data-goal-id="${goal.id}">${goal.status === "ACTIVE" ? "Deactivate" : "Activate"}</button>
           <button
             class="btn small secondary"
             data-goal-action="suggest"
@@ -148,20 +162,27 @@ function goalCard(goal, tasks) {
         </div>
       </div>
       <div id="goal-content-${goal.id}" class="goal-content"${collapsed ? " hidden" : ""}>
+        <div class="goal-meta muted" style="font-size:11px; display:flex; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
+          <span class="badge ${goalStatusClass}">${goalStatus}</span>
+          <span>Created ${formatDateLabel(goal.createdAt, "—")}</span>
+          <span>Started ${formatDateLabel(goal.startedAt, "Not started yet")}</span>
+          <span>Deadline ${formatDateLabel(goal.deadline, "No deadline")}</span>
+        </div>
         <div class="progress"><span style="width:${progress}%"></span></div>
         <div class="muted" style="font-size:11px">${progress}% complete · ${remaining} task${remaining === 1 ? "" : "s"} remaining</div>
         ${frontier ? `<div class="frontier"><div><div class="muted">CURRENT FRONTIER</div><strong>→ ${escapeHtml(frontier.title)}</strong></div><div class="row-actions">${frontier.status === TASK_STATUS.READY || frontier.status === TASK_STATUS.BACKLOG ? `<button class="btn small" data-task-action="next" data-task-id="${frontier.id}">Add to NEXT</button>` : ""}${frontier.status === TASK_STATUS.BLOCKED ? `<span class="badge blocked">Blocked</span>` : ""}</div></div>` : ""}
         <div class="goal-tasks">
-          ${goalTasks.length ? goalTasks.map((t) => taskLine(t)).join("") : `<div class="muted" style="font-size:12px;padding:10px 2px">No tasks yet. Break this goal into executable actions.</div>`}
+          ${goalTasks.length ? goalTasks.map((t) => taskLine(t, goal)).join("") : `<div class="muted" style="font-size:12px;padding:10px 2px">No tasks yet. Break this goal into executable actions.</div>`}
         </div>
       </div>
     </article>`;
 }
 
-function taskLine(task) {
+function taskLine(task, goal) {
   const classes = [task.status === TASK_STATUS.DONE ? "done" : "", task.status === TASK_STATUS.BLOCKED ? "blocked" : ""].join(" ");
   const statusLabel = task.status === TASK_STATUS.DONE ? "✓" : task.status === TASK_STATUS.BLOCKED ? "!" : task.status === TASK_STATUS.NEXT ? "N" : task.status === TASK_STATUS.TODAY || task.status === TASK_STATUS.IN_PROGRESS ? "T" : "";
-  return `<div class="task-line ${classes}"><div class="dot">${statusLabel}</div><div class="grow"><div class="title">${escapeHtml(task.title)}</div>${task.blockedReason ? `<div class="sub">Blocked: ${escapeHtml(task.blockedReason)}</div>` : ""}</div><div class="row-actions">${[TASK_STATUS.BACKLOG, TASK_STATUS.READY].includes(task.status) ? `<button class="btn small secondary" data-task-action="next" data-task-id="${task.id}">Add to NEXT</button>` : ""}${task.status === TASK_STATUS.BLOCKED ? `<button class="btn small secondary" data-task-action="unblock" data-task-id="${task.id}">Unblock</button>` : task.status !== TASK_STATUS.DONE ? `<button class="btn small ghost" data-task-action="block" data-task-id="${task.id}">Block</button>` : ""}<button class="btn small ghost" data-task-action="edit" data-task-id="${task.id}">Edit</button></div></div>`;
+  const canPromoteToNext = goal?.status !== "INACTIVE";
+  return `<div class="task-line ${classes}"><div class="dot">${statusLabel}</div><div class="grow"><div class="title">${escapeHtml(task.title)}</div>${task.blockedReason ? `<div class="sub">Blocked: ${escapeHtml(task.blockedReason)}</div>` : ""}</div><div class="row-actions"><button class="btn small ghost" data-task-action="info" data-task-id="${task.id}">Info</button>${[TASK_STATUS.BACKLOG, TASK_STATUS.READY].includes(task.status) && canPromoteToNext ? `<button class="btn small secondary" data-task-action="next" data-task-id="${task.id}">Add to NEXT</button>` : ""}${task.status === TASK_STATUS.BLOCKED ? `<button class="btn small secondary" data-task-action="unblock" data-task-id="${task.id}">Unblock</button>` : task.status !== TASK_STATUS.DONE ? `<button class="btn small ghost" data-task-action="block" data-task-id="${task.id}">Block</button>` : ""}<button class="btn small ghost" data-task-action="edit" data-task-id="${task.id}">Edit</button></div></div>`;
 }
 
 function renderIdeas(state) {
@@ -188,7 +209,12 @@ async function openGoalModal(goalId = null) {
     <form id="goal-form" class="form-grid">
       <label class="label">Goal name<input class="input" name="title" required value="${escapeHtml(goal?.title ?? "")}" placeholder="Build my portfolio"></label>
       <label class="label">Desired outcome<textarea class="textarea" rows="3" name="description" required placeholder="A deployed interactive portfolio website built with Flutter.">${escapeHtml(goal?.description ?? "")}</textarea></label>
-      <div class="form-row-2"><label class="label">Deadline (optional)<input class="input" type="date" name="deadline" value="${escapeHtml(goal?.deadline ?? "")}"></label><label class="label">Notes (optional)<input class="input" name="notes" value="${escapeHtml(goal?.notes ?? "")}"></label></div>
+      <div class="form-row-2">
+        <label class="label">Status<select class="select" name="status"><option value="INACTIVE" ${goal?.status === "ACTIVE" ? "" : "selected"}>Inactive</option><option value="ACTIVE" ${goal?.status === "ACTIVE" ? "selected" : ""}>Active</option></select></label>
+        <label class="label">Deadline (optional)<input class="input" type="date" name="deadline" value="${escapeHtml(goal?.deadline ?? "")}"></label>
+      </div>
+      <label class="label">Notes (optional)<input class="input" name="notes" value="${escapeHtml(goal?.notes ?? "")}"></label>
+      <div class="muted" style="font-size:11px; margin-top:-4px;">${goal ? `Created ${formatDateLabel(goal.createdAt, "—")} • Started ${formatDateLabel(goal.startedAt, "Not started yet")}` : "New goals start inactive until you activate them."}</div>
       <div class="modal-actions">${goal ? `<button type="button" class="btn danger" id="delete-goal">Delete</button>` : ""}<button type="button" class="btn secondary" id="cancel-modal">Cancel</button><button class="btn" type="submit">${goal ? "Save" : "Create Goal"}</button></div>
     </form>`);
   $("#cancel-modal").onclick = closeModal;
@@ -226,6 +252,44 @@ async function openTaskModal(taskId = null, presetGoalId = null) {
     delete data.dependencyId;
     try { task ? await updateTask(task.id, data) : await createTask(data); closeModal(); render(currentView === "today" ? "later" : currentView); toast(task ? "Task updated." : "Task added."); } catch (err) { toast(err.message, true); }
   };
+}
+
+async function openTaskDetails(taskId) {
+  const state = await getAppState();
+  const task = state.tasks.find((t) => t.id === taskId);
+  if (!task) return toast("Task not found.", true);
+
+  const goal = state.goals.find((g) => g.id === task.goalId);
+  const dependency = task.dependencyIds?.[0] ? state.tasks.find((t) => t.id === task.dependencyIds[0]) : null;
+  const formatDateValue = (value) => {
+    if (!value) return "—";
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? "—" : parsed.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+  };
+
+  openModal(`
+    <h2>Task details</h2>
+    <p>Everything captured for this task.</p>
+    <div class="detail-grid">
+      <div class="detail-item"><span class="detail-label">Title</span><strong>${escapeHtml(task.title)}</strong></div>
+      <div class="detail-item"><span class="detail-label">Goal</span><strong>${escapeHtml(goal?.title ?? "Goal removed")}</strong></div>
+      <div class="detail-item"><span class="detail-label">Status</span><strong>${escapeHtml(task.status)}</strong></div>
+      <div class="detail-item"><span class="detail-label">Estimated minutes</span><strong>${task.estimatedMinutes ? `${task.estimatedMinutes} min` : "—"}</strong></div>
+      <div class="detail-item"><span class="detail-label">Created</span><strong>${escapeHtml(formatDateValue(task.createdAt))}</strong></div>
+      <div class="detail-item"><span class="detail-label">Started</span><strong>${escapeHtml(formatDateValue(task.startedAt))}</strong></div>
+      <div class="detail-item"><span class="detail-label">Completed</span><strong>${escapeHtml(formatDateValue(task.completedAt))}</strong></div>
+      <div class="detail-item"><span class="detail-label">Dependency</span><strong>${escapeHtml(dependency?.title ?? "None")}</strong></div>
+      <div class="detail-item detail-item-full"><span class="detail-label">Blocked reason</span><div class="detail-text">${task.blockedReason ? escapeHtml(task.blockedReason) : "—"}</div></div>
+      <div class="detail-item detail-item-full"><span class="detail-label">Notes</span><div class="detail-text">${task.notes ? escapeHtml(task.notes) : "No notes saved."}</div></div>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn secondary" id="cancel-modal">Close</button>
+      <button type="button" class="btn" id="edit-task-details">Edit task</button>
+    </div>
+  `);
+
+  $("#cancel-modal").onclick = closeModal;
+  $("#edit-task-details").onclick = () => { closeModal(); openTaskModal(task.id); };
 }
 
 function openIdeaModal() {
@@ -305,6 +369,18 @@ function bindCommonActions() {
           );
         }
 
+        if (el.dataset.goalAction === "activate") {
+          return updateGoal(el.dataset.goalId, { status: "ACTIVE" })
+            .then(() => render(currentView))
+            .catch((err) => toast(err.message, true));
+        }
+
+        if (el.dataset.goalAction === "deactivate") {
+          return updateGoal(el.dataset.goalId, { status: "INACTIVE" })
+            .then(() => render(currentView))
+            .catch((err) => toast(err.message, true));
+        }
+
         if (el.dataset.goalAction === "toggle-collapse") {
           return toggleGoalCollapse(el.dataset.goalId).catch((err) => toast(err.message, true));
         }
@@ -339,6 +415,7 @@ function bindCommonActions() {
         case "remove-quick": await removeQuickTask(id); break;
         case "complete": await completeTask(id); break;
         case "start": return showFocus(id);
+        case "info": return openTaskDetails(id);
         case "edit": return openTaskModal(id);
         case "block": return openBlockModal(id);
         case "unblock": await unblockTask(id); break;

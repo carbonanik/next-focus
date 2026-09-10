@@ -6,6 +6,11 @@ function now() {
   return new Date().toISOString();
 }
 
+function normalizeGoalStatus(status) {
+  if (status === "ACTIVE" || status === "INACTIVE" || status === "DONE") return status;
+  return "INACTIVE";
+}
+
 function normalizeTaskStatus(task, allTasks) {
   if (task.status === TASK_STATUS.DONE || task.status === TASK_STATUS.BLOCKED || task.status === TASK_STATUS.NEXT || task.status === TASK_STATUS.TODAY || task.status === TASK_STATUS.IN_PROGRESS) {
     return task.status;
@@ -34,9 +39,21 @@ export async function getAppState() {
   return state;
 }
 
-export async function createGoal({ title, description, deadline = "", notes = "" }) {
+export async function createGoal({ title, description, deadline = "", notes = "", status = "INACTIVE" }) {
   const goals = await storageRepository.getGoals();
-  const goal = { id: uid("goal"), title: title.trim(), description: description.trim(), deadline, notes: notes.trim(), status: "ACTIVE", collapsed: false, createdAt: now(), completedAt: null };
+  const goalStatus = normalizeGoalStatus(status);
+  const goal = {
+    id: uid("goal"),
+    title: title.trim(),
+    description: description.trim(),
+    deadline,
+    notes: notes.trim(),
+    status: goalStatus,
+    collapsed: false,
+    createdAt: now(),
+    startedAt: goalStatus === "ACTIVE" ? now() : null,
+    completedAt: null
+  };
   goals.push(goal);
   await storageRepository.saveGoals(goals);
   return goal;
@@ -46,7 +63,14 @@ export async function updateGoal(goalId, patch) {
   const goals = await storageRepository.getGoals();
   const index = goals.findIndex((g) => g.id === goalId);
   if (index < 0) throw new Error("Goal not found.");
-  goals[index] = { ...goals[index], ...patch };
+
+  const nextGoal = { ...goals[index], ...patch };
+  nextGoal.status = normalizeGoalStatus(nextGoal.status ?? goals[index].status ?? "INACTIVE");
+  if (nextGoal.status === "ACTIVE" && !nextGoal.startedAt) {
+    nextGoal.startedAt = now();
+  }
+
+  goals[index] = nextGoal;
   await storageRepository.saveGoals(goals);
   return goals[index];
 }
@@ -91,9 +115,11 @@ export async function deleteTask(taskId) {
 }
 
 export async function promoteToNext(taskId) {
-  const tasks = await storageRepository.getTasks();
+  const [tasks, goals] = await Promise.all([storageRepository.getTasks(), storageRepository.getGoals()]);
   const task = tasks.find((t) => t.id === taskId);
   if (!task) throw new Error("Task not found.");
+  const goal = goals.find((g) => g.id === task.goalId);
+  if (goal?.status === "INACTIVE") throw new Error("Activate this goal before adding its tasks to NEXT.");
   if (task.status === TASK_STATUS.BLOCKED) throw new Error("Blocked tasks cannot enter NEXT.");
   const depsReady = (task.dependencyIds ?? []).every((id) => tasks.find((t) => t.id === id)?.status === TASK_STATUS.DONE);
   if (!depsReady) throw new Error("Complete this task's dependencies first.");
