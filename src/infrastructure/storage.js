@@ -5,18 +5,25 @@ const GUEST_KEYS = {
   goals: "nextfocus_goals",
   tasks: "nextfocus_tasks",
   ideas: "nextfocus_ideas",
-  plans: "nextfocus_daily_plans"
+  plans: "nextfocus_daily_plans",
+  journal: "nextfocus_journal"
 };
 
-const DEFAULTS = { goals: [], tasks: [], ideas: [], plans: {} };
-const freshDefault = (section) => section === "plans" ? {} : [];
+const DEFAULTS = { goals: [], tasks: [], ideas: [], plans: {}, journal: {} };
+const freshDefault = (section) => section === "plans" || section === "journal" ? {} : [];
 const pendingSectionKey = (uid, section) => `nextfocus_user_${uid}_pending_${section}`;
 const pendingKeys = (uid) => Object.fromEntries(Object.keys(DEFAULTS).map((section) => [section, pendingSectionKey(uid, section)]));
 const initializedKey = (uid) => `nextfocus_user_${uid}_initialized`;
 const userKey = (uid, section) => `nextfocus_user_${uid}_${section}`;
 
 function hasMeaningfulData(state) {
-  return Boolean(state.goals?.length || state.tasks?.length || state.ideas?.length || Object.keys(state.plans ?? {}).length);
+  return Boolean(
+    state.goals?.length ||
+    state.tasks?.length ||
+    state.ideas?.length ||
+    Object.keys(state.plans ?? {}).length ||
+    Object.keys(state.journal ?? {}).length
+  );
 }
 
 class HybridStorageRepository {
@@ -32,6 +39,8 @@ class HybridStorageRepository {
   async saveIdeas(value) { return this.#save("ideas", value); }
   async getPlans() { return this.#get("plans"); }
   async savePlans(value) { return this.#save("plans", value); }
+  async getJournal() { return this.#get("journal"); }
+  async saveJournal(value) { return this.#save("journal", value); }
 
   async loadAll() {
     const access = await authRepository.getAccessState();
@@ -42,7 +51,8 @@ class HybridStorageRepository {
       goals: data[keys.goals] ?? [],
       tasks: data[keys.tasks] ?? [],
       ideas: data[keys.ideas] ?? [],
-      plans: data[keys.plans] ?? {}
+      plans: data[keys.plans] ?? {},
+      journal: data[keys.journal] ?? {}
     };
   }
 
@@ -167,7 +177,8 @@ class HybridStorageRepository {
       goals: data[GUEST_KEYS.goals] ?? [],
       tasks: data[GUEST_KEYS.tasks] ?? [],
       ideas: data[GUEST_KEYS.ideas] ?? [],
-      plans: data[GUEST_KEYS.plans] ?? {}
+      plans: data[GUEST_KEYS.plans] ?? {},
+      journal: data[GUEST_KEYS.journal] ?? {}
     };
   }
 

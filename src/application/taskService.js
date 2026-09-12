@@ -296,3 +296,42 @@ export function recommendation(tasks) {
     return new Date(a.createdAt) - new Date(b.createdAt);
   })[0] ?? null;
 }
+
+export async function getJournalEntry(dateKey = todayKey()) {
+  const journal = await storageRepository.getJournal();
+  const entry = journal[dateKey];
+  if (entry) {
+    return entry;
+  }
+  return {
+    id: uid("journal"),
+    date: dateKey,
+    content: "",
+    createdAt: now(),
+    updatedAt: now()
+  };
+}
+
+export async function saveJournalEntry(dateKey = todayKey(), content = "") {
+  const journal = await storageRepository.getJournal();
+  const existing = journal[dateKey];
+  const entry = {
+    id: existing?.id ?? uid("journal"),
+    date: dateKey,
+    content,
+    createdAt: existing?.createdAt ?? now(),
+    updatedAt: now()
+  };
+  journal[dateKey] = entry;
+  await storageRepository.saveJournal(journal);
+  return entry;
+}
+
+export async function getRecentJournalDates(limit = 14) {
+  const journal = await storageRepository.getJournal();
+  return Object.keys(journal)
+    .filter((key) => Boolean(journal[key]?.content?.trim()))
+    .sort()
+    .reverse()
+    .slice(0, limit);
+}

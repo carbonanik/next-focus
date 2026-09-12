@@ -123,6 +123,41 @@ function formatDateLabel(value, fallback = "—") {
   return Number.isNaN(parsed.getTime()) ? fallback : parsed.toLocaleDateString([], { year: "numeric", month: "short", day: "numeric" });
 }
 
+function dayKey(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function buildCompletionChartData(tasks) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const buckets = new Map();
+  for (let offset = 29; offset >= 0; offset -= 1) {
+    const date = new Date(today);
+    date.setDate(today.getDate() - offset);
+    const key = dayKey(date);
+    buckets.set(key, {
+      key,
+      date,
+      count: 0,
+      shortLabel: date.toLocaleDateString([], { month: "short", day: "numeric" })
+    });
+  }
+
+  for (const task of tasks) {
+    if (task.status !== TASK_STATUS.DONE || !task.completedAt) continue;
+    const completedAt = new Date(task.completedAt);
+    if (Number.isNaN(completedAt.getTime())) continue;
+    const key = dayKey(completedAt);
+    if (buckets.has(key)) buckets.get(key).count += 1;
+  }
+
+  return Array.from(buckets.values());
+}
+
 function goalCard(goal, tasks) {
   const goalTasks = tasks.filter((t) => t.goalId === goal.id);
   const remaining = goalTasks.filter((t) => t.status !== TASK_STATUS.DONE).length;
@@ -196,8 +231,41 @@ function renderIdeas(state) {
 
 function renderHistory(state) {
   const goals = new Map(state.goals.map((g) => [g.id, g]));
-  const done = state.tasks.filter((t) => t.status === TASK_STATUS.DONE).sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt));
-  viewEl.innerHTML = `<div class="section-title"><div><h2>Recently completed</h2><div class="muted" style="font-size:12px;margin-top:4px">Visible progress, without turning work into analytics.</div></div></div><div class="history-list">${done.length ? done.map((t) => `<div class="row"><div class="queue-index">✓</div><div class="grow"><div class="title">${escapeHtml(t.title)}</div><div class="sub">${escapeHtml(goals.get(t.goalId)?.title ?? "Goal")} · ${new Date(t.completedAt).toLocaleString()}</div></div></div>`).join("") : `<div class="empty">Completed tasks will appear here.</div>`}</div>`;
+  const done = state.tasks.filter((t) => t.status === TASK_STATUS.DONE && t.completedAt).sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt));
+  const chartData = buildCompletionChartData(done);
+  const maxCount = Math.max(...chartData.map((day) => day.count), 1);
+
+  viewEl.innerHTML = `
+    <div class="section-title">
+      <div>
+        <h2>Recently completed</h2>
+        <div class="muted" style="font-size:12px;margin-top:4px">Visible progress, without turning work into analytics.</div>
+      </div>
+    </div>
+
+    <section class="chart-panel">
+      <div class="chart-head">
+        <h3>Daily task completion</h3>
+        <span class="muted" style="font-size:12px">Last 30 days</span>
+      </div>
+      <div class="chart-grid">
+        ${chartData.map((day) => {
+          const occupiedHeight = day.count ? (day.count / maxCount) * 100 : 0;
+          return `
+            <div class="chart-day">
+              <div class="chart-value">${day.count}</div>
+              <div class="chart-bar-wrap">
+                <div class="chart-bar" style="height:${Math.max(occupiedHeight, day.count ? 18 : 0)}%"></div>
+              </div>
+              <div class="chart-label">${day.shortLabel}</div>
+            </div>`;
+        }).join("")}
+      </div>
+    </section>
+
+    <div class="history-list" style="margin-top:20px;">
+      ${done.length ? done.map((t) => `<div class="row"><div class="queue-index">✓</div><div class="grow"><div class="title">${escapeHtml(t.title)}</div><div class="sub">${escapeHtml(goals.get(t.goalId)?.title ?? "Goal")} · ${new Date(t.completedAt).toLocaleString()}</div></div></div>`).join("") : `<div class="empty">Completed tasks will appear here.</div>`}
+    </div>`;
 }
 
 async function openGoalModal(goalId = null) {

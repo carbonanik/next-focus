@@ -29,3 +29,38 @@ export function escapeHtml(value = "") {
 export function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
+
+export function parseDateKey(dateKeyStr) {
+  const [y, m, d] = dateKeyStr.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+export function shiftDateKey(dateKeyStr, days) {
+  const date = parseDateKey(dateKeyStr);
+  date.setDate(date.getDate() + days);
+  return todayKey(date);
+}
+
+export function formatJournalDate(dateKeyStr) {
+  const date = parseDateKey(dateKeyStr);
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric"
+  }).format(date);
+}
+
+export function formatShortDate(dateKeyStr) {
+  const date = parseDateKey(dateKeyStr);
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric"
+  }).format(date);
+}
+
+export function formatTimeOnly(date = new Date()) {
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(date);
+}
