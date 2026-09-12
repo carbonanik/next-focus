@@ -37,6 +37,7 @@ async function render() {
   const countEl = document.querySelector("#next-count");
   dateEl.textContent = formatDate();
 
+  document.querySelector("#open-journal").onclick = () => openFullApp("index.html#journal");
   document.querySelector("#open-app").onclick = () => openFullApp();
   document.querySelector("#quick-capture").onclick = () => openFullApp("index.html#new-task");
 

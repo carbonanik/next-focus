@@ -58,16 +58,39 @@ This build uses Firebase REST APIs, so there is no Firebase SDK, CDN script, npm
 
 ## Data model in Firestore
 
-Each signed-in user gets four documents:
+Each signed-in user gets five documents:
 
 ```text
 users/{uid}/data/goals
 users/{uid}/data/tasks
 users/{uid}/data/ideas
 users/{uid}/data/plans
+users/{uid}/data/journal
 ```
 
 Each document stores that section as a versioned JSON payload. This keeps the extension's domain model independent from Firestore-specific data types.
+
+## The 5 Mental Activities
+
+NextFocus organizes your workflow into 5 distinct mental spaces:
+
+- 💭 **IDEAS** — Things I might do (fast capture, no commitment)
+- 🎯 **LATER** — Things I decided to accomplish (goals & outcomes)
+- 📥 **NEXT** — Things I have prepared to do (curated queue of max 7 executable tasks)
+- ⭐ **TODAY** — The one thing I'm doing now (one main focus task + up to 3 quick tasks)
+- 📖 **JOURNAL** — Things I'm thinking about (frictionless daily reflection)
+
+## Frictionless Journal
+
+A daily monologue space that connects thinking directly with your task system:
+
+- **One continuous document per day:** write whatever is on your mind with no forced structure, moods, ratings, tags, or templates.
+- **Direct entry:** opening Journal takes you straight into writing.
+- **Automatic saving:** continuous background saving with zero popups or confirmation prompts.
+- **Thought timestamps:** click **+ Add thought** or shortcuts (**Morning**, **During day**, **Evening**) to automatically insert the current time into the flow.
+- **Personal timeline:** browse backward and forward with day-by-day navigation (`← Yesterday`, `Today`, `Tomorrow →`).
+- **Today ↔ Journal context:** see today's planned and completed tasks right next to your reflections to capture real context on your work.
+
 
 ## Offline → account migration
 

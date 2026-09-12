@@ -660,7 +660,7 @@ h1 {
   }
 
   nav {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
   }
 
   nav button {
@@ -687,8 +687,9 @@ h1 {
   .hero-task h2 {
     font-size: 29px;
   }
+}
 
-  .ai-modal-head {
+.ai-modal-head {
     display: flex;
     gap: 12px;
     align-items: flex-start;
@@ -851,5 +852,247 @@ h1 {
       width: 100%;
       justify-content: flex-start;
     }
+  }
+
+/* Journal styles */
+.journal-container {
+  display: grid;
+  gap: 16px;
+  max-width: 1100px;
+}
+
+.journal-timeline-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+
+.journal-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease;
+}
+
+.journal-nav-btn:hover {
+  background: #e4e9df;
+  border-color: #cbd4c5;
+}
+
+.journal-nav-btn .arrow {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.journal-date-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.journal-date-heading h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -.02em;
+}
+
+.journal-today-badge {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 800;
+  font-size: 11px;
+}
+
+.journal-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 0 4px;
+}
+
+.journal-thought-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.journal-status {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  user-select: none;
+}
+
+.journal-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 290px;
+  gap: 22px;
+  align-items: start;
+}
+
+.journal-paper {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 24px 28px;
+  box-shadow: var(--shadow);
+  transition: border-color .2s ease;
+}
+
+.journal-paper:focus-within {
+  border-color: #94b8a1;
+  box-shadow: 0 16px 40px rgba(31, 111, 74, .08);
+}
+
+.journal-textarea {
+  width: 100%;
+  min-height: 420px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--text);
+  resize: none;
+  display: block;
+}
+
+.journal-textarea::placeholder {
+  color: #98a59c;
+  font-style: italic;
+}
+
+.journal-context-panel {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 18px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, .02);
+}
+
+.context-panel-head {
+  padding-bottom: 12px;
+  border-bottom: 1px solid #edf0eb;
+  margin-bottom: 12px;
+}
+
+.context-kicker {
+  font-size: 11px;
+  letter-spacing: .12em;
+  font-weight: 900;
+  color: var(--accent);
+}
+
+.context-sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+.context-tasks-list {
+  display: grid;
+  gap: 8px;
+}
+
+.context-task-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.context-task-item.done {
+  opacity: 0.7;
+}
+
+.context-task-item.done .context-task-title {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
+.context-status-symbol {
+  font-weight: 900;
+  color: var(--accent);
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.context-task-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.context-task-title {
+  font-weight: 700;
+  word-break: break-word;
+}
+
+.context-task-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+.context-badge {
+  font-size: 9px;
+  font-weight: 900;
+  text-transform: uppercase;
+  padding: 2px 5px;
+  border-radius: 5px;
+  letter-spacing: .04em;
+}
+
+.context-badge.main {
+  background: #172019;
+  color: #fff;
+}
+
+.context-badge.quick {
+  background: #dfe7e1;
+  color: #1f6f4a;
+}
+
+.context-empty-hint {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 8px 2px;
+}
+
+@media (max-width: 960px) {
+  .journal-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .journal-timeline-bar {
+    flex-direction: column;
+    text-align: center;
   }
 }

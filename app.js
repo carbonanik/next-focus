@@ -1,10 +1,14 @@
 import {
   addQuickTask, blockTask, completeTask, convertIdeaToGoal, createGoal, createIdea, createTask,
-  deleteGoal, deleteIdea, deleteTask, getAppState, goalFrontier, goalProgress, makeToday,
-  promoteToNext, recommendation, removeFromNext, removeQuickTask, removeToday, startTask, unblockTask, updateGoal, updateTask
+  deleteGoal, deleteIdea, deleteTask, getAppState, getJournalEntry, getRecentJournalDates, goalFrontier,
+  goalProgress, makeToday, promoteToNext, recommendation, removeFromNext, removeQuickTask, removeToday,
+  saveJournalEntry, startTask, unblockTask, updateGoal, updateTask
 } from "./src/application/taskService.js";
 import { TASK_STATUS } from "./src/domain/constants.js";
-import { escapeHtml, formatDate, todayKey } from "./src/shared/utils.js";
+import {
+  escapeHtml, formatDate, formatJournalDate, formatShortDate, formatTimeOnly,
+  shiftDateKey, todayKey
+} from "./src/shared/utils.js";
 import { authRepository } from "./src/infrastructure/auth.js";
 import { storageRepository } from "./src/infrastructure/storage.js";
 import { taskSuggestionProvider } from "./src/infrastructure/aiTaskSuggestionProvider.js";
@@ -17,6 +21,8 @@ const navEl = document.querySelector("#nav");
 document.querySelector("#app-date").textContent = formatDate();
 
 let currentView = "today";
+let currentJournalDate = todayKey();
+let journalSaveTimer = null;
 let timerHandle = null;
 let taskSuggestions = [];
 let suggestionGoalId = null;
@@ -30,6 +36,110 @@ function toast(message, error = false) {
   setTimeout(() => { root.innerHTML = ""; }, 2600);
 }
 
+function setJournalStatus(statusText) {
+  const el = $("#journal-status");
+  if (el) el.textContent = statusText;
+}
+
+function triggerJournalAutoSave() {
+  setJournalStatus("Saving...");
+  if (journalSaveTimer) clearTimeout(journalSaveTimer);
+  journalSaveTimer = setTimeout(async () => {
+    await flushJournalSave();
+  }, 350);
+}
+
+async function flushJournalSave() {
+  if (journalSaveTimer) {
+    clearTimeout(journalSaveTimer);
+    journalSaveTimer = null;
+  }
+  const editor = $("#journal-editor");
+  if (editor && editor.dataset.date) {
+    const text = editor.value;
+    const date = editor.dataset.date;
+    try {
+      await saveJournalEntry(date, text);
+      setJournalStatus("Saved");
+    } catch (e) {
+      setJournalStatus("Save failed");
+    }
+  }
+}
+
+function autoResizeTextarea(textarea) {
+  if (!textarea) return;
+  textarea.style.height = "auto";
+  textarea.style.height = `${Math.max(340, textarea.scrollHeight)}px`;
+}
+
+function insertJournalThought(slotName = "") {
+  const editor = $("#journal-editor");
+  if (!editor) return;
+  const timeStr = formatTimeOnly(new Date());
+  const header = slotName ? `${timeStr} — ${slotName}` : timeStr;
+
+  const text = editor.value;
+  const start = editor.selectionStart ?? text.length;
+  const end = editor.selectionEnd ?? text.length;
+
+  const before = text.slice(0, start);
+  const after = text.slice(end);
+
+  let prefix = "";
+  if (before.length > 0) {
+    if (before.endsWith("\n\n")) prefix = "";
+    else if (before.endsWith("\n")) prefix = "\n";
+    else prefix = "\n\n";
+  }
+
+  const insertion = `${prefix}${header}\n\n`;
+  editor.value = before + insertion + after;
+  const newPos = start + insertion.length;
+  editor.focus();
+  editor.setSelectionRange(newPos, newPos);
+  autoResizeTextarea(editor);
+  triggerJournalAutoSave();
+}
+
+function getTasksForDate(state, dateKey) {
+  const plan = state.plans[dateKey] ?? { mainTaskId: null, quickTaskIds: [] };
+  const goals = new Map(state.goals.map((g) => [g.id, g]));
+
+  const tasks = [];
+  const addedIds = new Set();
+
+  if (plan.mainTaskId) {
+    const main = state.tasks.find((t) => t.id === plan.mainTaskId);
+    if (main) {
+      tasks.push({ task: main, role: "main", goal: goals.get(main.goalId) });
+      addedIds.add(main.id);
+    }
+  }
+
+  for (const qid of (plan.quickTaskIds ?? [])) {
+    if (addedIds.has(qid)) continue;
+    const q = state.tasks.find((t) => t.id === qid);
+    if (q) {
+      tasks.push({ task: q, role: "quick", goal: goals.get(q.goalId) });
+      addedIds.add(qid);
+    }
+  }
+
+  for (const t of state.tasks) {
+    if (addedIds.has(t.id)) continue;
+    if (t.status === TASK_STATUS.DONE && t.completedAt) {
+      const compKey = todayKey(new Date(t.completedAt));
+      if (compKey === dateKey) {
+        tasks.push({ task: t, role: "completed", goal: goals.get(t.goalId) });
+        addedIds.add(t.id);
+      }
+    }
+  }
+
+  return tasks;
+}
+
 function closeModal() {
   modalBackdrop.classList.add("hidden");
   modalEl.innerHTML = "";
@@ -41,13 +151,15 @@ function openModal(html) {
 }
 
 async function render(view = currentView) {
+  await flushJournalSave();
   currentView = view;
-  titleEl.textContent = view === "today" ? "Today" : view === "next" ? "Next" : view === "later" ? "Later" : view === "ideas" ? "Ideas" : "History";
+  titleEl.textContent = view === "today" ? "Today" : view === "next" ? "Next" : view === "later" ? "Later" : view === "journal" ? "Journal" : view === "ideas" ? "Ideas" : "History";
   $$("nav button").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
   const state = await getAppState();
   if (view === "today") renderToday(state);
   if (view === "next") renderNext(state);
   if (view === "later") renderLater(state);
+  if (view === "journal") renderJournal(state, currentJournalDate);
   if (view === "ideas") renderIdeas(state);
   if (view === "history") renderHistory(state);
 }
@@ -218,6 +330,126 @@ function taskLine(task, goal) {
   const statusLabel = task.status === TASK_STATUS.DONE ? "✓" : task.status === TASK_STATUS.BLOCKED ? "!" : task.status === TASK_STATUS.NEXT ? "N" : task.status === TASK_STATUS.TODAY || task.status === TASK_STATUS.IN_PROGRESS ? "T" : "";
   const canPromoteToNext = goal?.status !== "INACTIVE";
   return `<div class="task-line ${classes}"><div class="dot">${statusLabel}</div><div class="grow"><div class="title">${escapeHtml(task.title)}</div>${task.blockedReason ? `<div class="sub">Blocked: ${escapeHtml(task.blockedReason)}</div>` : ""}</div><div class="row-actions"><button class="btn small ghost" data-task-action="info" data-task-id="${task.id}">Info</button>${[TASK_STATUS.BACKLOG, TASK_STATUS.READY].includes(task.status) && canPromoteToNext ? `<button class="btn small secondary" data-task-action="next" data-task-id="${task.id}">Add to NEXT</button>` : ""}${task.status === TASK_STATUS.BLOCKED ? `<button class="btn small secondary" data-task-action="unblock" data-task-id="${task.id}">Unblock</button>` : task.status !== TASK_STATUS.DONE ? `<button class="btn small ghost" data-task-action="block" data-task-id="${task.id}">Block</button>` : ""}<button class="btn small ghost" data-task-action="edit" data-task-id="${task.id}">Edit</button></div></div>`;
+}
+
+function renderJournal(state, dateKey = todayKey()) {
+  currentJournalDate = dateKey;
+  const isToday = (dateKey === todayKey());
+  const prevDateKey = shiftDateKey(dateKey, -1);
+  const nextDateKey = shiftDateKey(dateKey, 1);
+  const dateDisplay = formatJournalDate(dateKey);
+  const entry = state.journal?.[dateKey] ?? { content: "" };
+  const contextTasks = getTasksForDate(state, dateKey);
+
+  viewEl.innerHTML = `
+    <section class="journal-container">
+      <div class="journal-timeline-bar">
+        <button class="journal-nav-btn" data-journal-date="${prevDateKey}">
+          <span class="arrow">←</span>
+          <span>${formatShortDate(prevDateKey)}</span>
+        </button>
+
+        <div class="journal-date-heading">
+          <h2>${escapeHtml(dateDisplay)}</h2>
+          ${isToday ? `<span class="badge journal-today-badge">Today</span>` : `<button class="btn small ghost" id="jump-today-btn">Jump to Today</button>`}
+        </div>
+
+        <button class="journal-nav-btn" data-journal-date="${nextDateKey}">
+          <span>${formatShortDate(nextDateKey)}</span>
+          <span class="arrow">→</span>
+        </button>
+      </div>
+
+      <div class="journal-toolbar">
+        <div class="journal-thought-actions">
+          <button class="btn small" id="add-thought-main">+ Add thought</button>
+          <button class="btn small ghost" data-slot="Morning">Morning</button>
+          <button class="btn small ghost" data-slot="During day">During day</button>
+          <button class="btn small ghost" data-slot="Evening">Evening</button>
+        </div>
+        <div class="journal-status" id="journal-status">Saved</div>
+      </div>
+
+      <div class="journal-layout">
+        <div class="journal-paper">
+          <textarea
+            id="journal-editor"
+            data-date="${dateKey}"
+            class="journal-textarea"
+            placeholder="What's on your mind? Start writing..."
+            spellcheck="true">${escapeHtml(entry.content ?? "")}</textarea>
+        </div>
+
+        <aside class="journal-context-panel">
+          <div class="context-panel-head">
+            <div class="context-kicker">TODAY</div>
+            <div class="context-sub">${isToday ? "Tasks planned & completed today" : "Recorded on this date"}</div>
+          </div>
+          <div class="context-tasks-list">
+            ${contextTasks.length ? contextTasks.map((item) => {
+              const isDone = item.task.status === TASK_STATUS.DONE;
+              const isCurrentMain = isToday && item.role === "main" && !isDone;
+              const symbol = isDone ? "✓" : isCurrentMain ? "⭐" : "○";
+              return `
+                <div class="context-task-item ${isDone ? "done" : ""}">
+                  <span class="context-status-symbol">${symbol}</span>
+                  <div class="context-task-body">
+                    <div class="context-task-title">${escapeHtml(item.task.title)}</div>
+                    <div class="context-task-meta">
+                      ${item.role === "main" ? `<span class="context-badge main">Main</span>` : item.role === "quick" ? `<span class="context-badge quick">Quick</span>` : ""}
+                      <span>${escapeHtml(item.goal?.title ?? "Goal")}</span>
+                    </div>
+                  </div>
+                </div>`;
+            }).join("") : `<div class="context-empty-hint">No tasks recorded for this date.</div>`}
+          </div>
+        </aside>
+      </div>
+    </section>
+  `;
+
+  const editor = $("#journal-editor");
+  if (editor) {
+    autoResizeTextarea(editor);
+    editor.oninput = () => {
+      autoResizeTextarea(editor);
+      triggerJournalAutoSave();
+    };
+    editor.onblur = () => {
+      flushJournalSave();
+    };
+
+    // Auto focus and place cursor at end
+    editor.focus();
+    const len = editor.value.length;
+    editor.setSelectionRange(len, len);
+  }
+
+  // Timeline button listeners
+  $$("[data-journal-date]").forEach((btn) => {
+    btn.onclick = async () => {
+      await flushJournalSave();
+      renderJournal(state, btn.dataset.journalDate);
+    };
+  });
+
+  const jumpTodayBtn = $("#jump-today-btn");
+  if (jumpTodayBtn) {
+    jumpTodayBtn.onclick = async () => {
+      await flushJournalSave();
+      renderJournal(state, todayKey());
+    };
+  }
+
+  // Thought shortcut buttons
+  const addThoughtBtn = $("#add-thought-main");
+  if (addThoughtBtn) {
+    addThoughtBtn.onclick = () => insertJournalThought();
+  }
+
+  $$("[data-slot]").forEach((btn) => {
+    btn.onclick = () => insertJournalThought(btn.dataset.slot);
+  });
 }
 
 function renderIdeas(state) {
@@ -493,12 +725,22 @@ function bindCommonActions() {
   });
 }
 
-navEl.addEventListener("click", (e) => { const btn = e.target.closest("button[data-view]"); if (btn) render(btn.dataset.view); });
+navEl.addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-view]");
+  if (btn) {
+    if (btn.dataset.view === "journal") currentJournalDate = todayKey();
+    render(btn.dataset.view);
+  }
+});
 $("#new-goal").onclick = () => openGoalModal();
 $("#new-task").onclick = () => openTaskModal();
 $("#history-btn").onclick = () => render("history");
 $("#search-btn").onclick = openSearch;
 modalBackdrop.addEventListener("click", (e) => { if (e.target === modalBackdrop) closeModal(); });
+
+window.addEventListener("beforeunload", () => {
+  flushJournalSave();
+});
 
 document.addEventListener("keydown", (e) => {
   if (!modalBackdrop.classList.contains("hidden")) { if (e.key === "Escape") closeModal(); return; }
@@ -509,6 +751,7 @@ document.addEventListener("keydown", (e) => {
   if (key === "t") render("today");
   if (key === "x") render("next");
   if (key === "l") render("later");
+  if (key === "j") { currentJournalDate = todayKey(); render("journal"); }
   if (key === "i") render("ideas");
   if (key === "n") openTaskModal();
   if (key === "g") openGoalModal();
@@ -904,6 +1147,7 @@ async function init() {
   const hash = location.hash;
   if (hash === "#new-task") await openTaskModal();
   else if (hash.startsWith("#focus:")) await showFocus(hash.slice(7));
+  else if (hash === "#journal") { currentJournalDate = todayKey(); await render("journal"); }
   else await render("today");
 }
 
