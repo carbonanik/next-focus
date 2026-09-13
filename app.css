@@ -410,6 +410,20 @@ h1 {
   border-radius: inherit;
 }
 
+.goal-progress {
+  margin-bottom: 10px;
+}
+
+.deadline-progress {
+  margin-top: 8px;
+  margin-bottom: 10px;
+  background: #f4d9d9;
+}
+
+.deadline-progress>span {
+  background: #d94c4c;
+}
+
 .frontier {
   display: flex;
   justify-content: space-between;
@@ -942,10 +956,21 @@ h1 {
 }
 
 .journal-layout {
+  display: block;
+  width: 100%;
+}
+
+.today-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 290px;
-  gap: 22px;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  gap: 24px;
   align-items: start;
+}
+
+@media (max-width: 860px) {
+  .today-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .journal-paper {
@@ -1084,11 +1109,6 @@ h1 {
   padding: 8px 2px;
 }
 
-@media (max-width: 960px) {
-  .journal-layout {
-    grid-template-columns: 1fr;
-  }
-}
 
 @media (max-width: 620px) {
   .journal-timeline-bar {

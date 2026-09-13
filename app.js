@@ -191,14 +191,50 @@ function renderToday(state) {
       ${rec ? `<button class="btn" data-task-action="today" data-task-id="${rec.id}">Make this today's task</button>` : `<button class="btn" data-go="later">Browse goals</button>`}
     </section>`;
 
+  const contextTasks = getTasksForDate(state, todayKey());
+  const completedTodayCount = contextTasks.filter((item) => item.task.status === TASK_STATUS.DONE).length;
+
   viewEl.innerHTML = `
     ${mainHtml}
-    <section class="section">
-      <div class="section-title"><h2>Quick</h2><span class="muted" style="font-size:12px">${quick.length}/3</span></div>
-      <div class="quick-list">
-        ${quick.length ? quick.map((t) => `<div class="row"><div class="grow"><div class="title">${escapeHtml(t.title)}</div><div class="sub">${escapeHtml(goals.get(t.goalId)?.title ?? "Goal")}</div></div><div class="row-actions"><button class="btn small ghost" data-task-action="info" data-task-id="${t.id}">Info</button><button class="btn small secondary" data-task-action="complete" data-task-id="${t.id}">Complete</button><button class="btn small ghost" data-task-action="remove-quick" data-task-id="${t.id}">Remove</button></div></div>`).join("") : `<div class="muted" style="font-size:13px;padding:4px 2px">Optional. Keep these small so they never compete with your main task.</div>`}
-      </div>
-    </section>`;
+    <div class="today-grid">
+      <section class="section">
+        <div class="section-title"><h2>Quick</h2><span class="muted" style="font-size:12px">${quick.length}/3</span></div>
+        <div class="quick-list">
+          ${quick.length ? quick.map((t) => `<div class="row"><div class="grow"><div class="title">${escapeHtml(t.title)}</div><div class="sub">${escapeHtml(goals.get(t.goalId)?.title ?? "Goal")}</div></div><div class="row-actions"><button class="btn small ghost" data-task-action="info" data-task-id="${t.id}">Info</button><button class="btn small secondary" data-task-action="complete" data-task-id="${t.id}">Complete</button><button class="btn small ghost" data-task-action="remove-quick" data-task-id="${t.id}">Remove</button></div></div>`).join("") : `<div class="muted" style="font-size:13px;padding:4px 2px">Optional. Keep these small so they never compete with your main task.</div>`}
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title">
+          <h2>Summary</h2>
+          <span class="muted" style="font-size:12px">${completedTodayCount} completed</span>
+        </div>
+        <aside class="journal-context-panel today-context-card">
+          <div class="context-panel-head">
+            <div class="context-kicker">TODAY</div>
+            <div class="context-sub">Tasks planned & completed today</div>
+          </div>
+          <div class="context-tasks-list">
+            ${contextTasks.length ? contextTasks.map((item) => {
+              const isDone = item.task.status === TASK_STATUS.DONE;
+              const isCurrentMain = item.role === "main" && !isDone;
+              const symbol = isDone ? "✓" : isCurrentMain ? "⭐" : "○";
+              return `
+                <div class="context-task-item ${isDone ? "done" : ""}">
+                  <span class="context-status-symbol">${symbol}</span>
+                  <div class="context-task-body">
+                    <div class="context-task-title">${escapeHtml(item.task.title)}</div>
+                    <div class="context-task-meta">
+                      ${item.role === "main" ? `<span class="context-badge main">Main</span>` : item.role === "quick" ? `<span class="context-badge quick">Quick</span>` : ""}
+                      <span>${escapeHtml(item.goal?.title ?? "Goal")}</span>
+                    </div>
+                  </div>
+                </div>`;
+            }).join("") : `<div class="context-empty-hint">No tasks recorded for today.</div>`}
+          </div>
+        </aside>
+      </section>
+    </div>`;
 
   bindCommonActions();
 }
@@ -270,10 +306,28 @@ function buildCompletionChartData(tasks) {
   return Array.from(buckets.values());
 }
 
+function goalDeadlineProgress(goal) {
+  if (!goal?.deadline || !goal?.startedAt) return null;
+
+  const startedAt = new Date(goal.startedAt);
+  const deadline = new Date(goal.deadline);
+  const now = new Date();
+
+  if (Number.isNaN(startedAt.getTime()) || Number.isNaN(deadline.getTime()) || deadline <= startedAt) {
+    return null;
+  }
+
+  const totalWindow = deadline.getTime() - startedAt.getTime();
+  const elapsed = now.getTime() - startedAt.getTime();
+
+  return Math.min(100, Math.max(0, Math.round((elapsed / totalWindow) * 100)));
+}
+
 function goalCard(goal, tasks) {
   const goalTasks = tasks.filter((t) => t.goalId === goal.id);
   const remaining = goalTasks.filter((t) => t.status !== TASK_STATUS.DONE).length;
   const progress = goalProgress(goal.id, tasks);
+  const deadlineProgress = goalDeadlineProgress(goal);
   const frontier = goalFrontier(goal.id, tasks);
   const collapsed = goal.collapsed === true;
   const goalStatus = goal.status === "ACTIVE" ? "Active" : goal.status === "DONE" ? "Done" : "Inactive";
@@ -315,8 +369,9 @@ function goalCard(goal, tasks) {
           <span>Started ${formatDateLabel(goal.startedAt, "Not started yet")}</span>
           <span>Deadline ${formatDateLabel(goal.deadline, "No deadline")}</span>
         </div>
-        <div class="progress"><span style="width:${progress}%"></span></div>
+        <div class="progress goal-progress"><span style="width:${progress}%"></span></div>
         <div class="muted" style="font-size:11px">${progress}% complete · ${remaining} task${remaining === 1 ? "" : "s"} remaining</div>
+        ${deadlineProgress !== null ? `<div class="progress deadline-progress"><span style="width:${deadlineProgress}%"></span></div>` : ""}
         ${frontier ? `<div class="frontier"><div><div class="muted">CURRENT FRONTIER</div><strong>→ ${escapeHtml(frontier.title)}</strong></div><div class="row-actions">${frontier.status === TASK_STATUS.READY || frontier.status === TASK_STATUS.BACKLOG ? `<button class="btn small" data-task-action="next" data-task-id="${frontier.id}">Add to NEXT</button>` : ""}${frontier.status === TASK_STATUS.BLOCKED ? `<span class="badge blocked">Blocked</span>` : ""}</div></div>` : ""}
         <div class="goal-tasks">
           ${goalTasks.length ? goalTasks.map((t) => taskLine(t, goal)).join("") : `<div class="muted" style="font-size:12px;padding:10px 2px">No tasks yet. Break this goal into executable actions.</div>`}
@@ -339,7 +394,6 @@ function renderJournal(state, dateKey = todayKey()) {
   const nextDateKey = shiftDateKey(dateKey, 1);
   const dateDisplay = formatJournalDate(dateKey);
   const entry = state.journal?.[dateKey] ?? { content: "" };
-  const contextTasks = getTasksForDate(state, dateKey);
 
   viewEl.innerHTML = `
     <section class="journal-container">
@@ -379,31 +433,6 @@ function renderJournal(state, dateKey = todayKey()) {
             placeholder="What's on your mind? Start writing..."
             spellcheck="true">${escapeHtml(entry.content ?? "")}</textarea>
         </div>
-
-        <aside class="journal-context-panel">
-          <div class="context-panel-head">
-            <div class="context-kicker">TODAY</div>
-            <div class="context-sub">${isToday ? "Tasks planned & completed today" : "Recorded on this date"}</div>
-          </div>
-          <div class="context-tasks-list">
-            ${contextTasks.length ? contextTasks.map((item) => {
-              const isDone = item.task.status === TASK_STATUS.DONE;
-              const isCurrentMain = isToday && item.role === "main" && !isDone;
-              const symbol = isDone ? "✓" : isCurrentMain ? "⭐" : "○";
-              return `
-                <div class="context-task-item ${isDone ? "done" : ""}">
-                  <span class="context-status-symbol">${symbol}</span>
-                  <div class="context-task-body">
-                    <div class="context-task-title">${escapeHtml(item.task.title)}</div>
-                    <div class="context-task-meta">
-                      ${item.role === "main" ? `<span class="context-badge main">Main</span>` : item.role === "quick" ? `<span class="context-badge quick">Quick</span>` : ""}
-                      <span>${escapeHtml(item.goal?.title ?? "Goal")}</span>
-                    </div>
-                  </div>
-                </div>`;
-            }).join("") : `<div class="context-empty-hint">No tasks recorded for this date.</div>`}
-          </div>
-        </aside>
       </div>
     </section>
   `;
