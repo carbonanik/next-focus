@@ -11,6 +11,27 @@ function normalizeGoalStatus(status) {
   return "INACTIVE";
 }
 
+function normalizeGoalPriority(priority) {
+  if (priority === "PRIMARY" || priority === "SECONDARY" || priority === "NORMAL") return priority;
+  return "NORMAL";
+}
+
+function applyGoalPriorityRules(goals, goalId, priority) {
+  const normalizedPriority = normalizeGoalPriority(priority);
+
+  return goals.map((goal) => {
+    if (goal.id === goalId) {
+      return { ...goal, priority: normalizedPriority };
+    }
+
+    if (normalizedPriority !== "NORMAL" && goal.priority === normalizedPriority) {
+      return { ...goal, priority: "NORMAL" };
+    }
+
+    return goal;
+  });
+}
+
 function normalizeTaskStatus(task, allTasks) {
   if (task.status === TASK_STATUS.DONE || task.status === TASK_STATUS.BLOCKED || task.status === TASK_STATUS.NEXT || task.status === TASK_STATUS.TODAY || task.status === TASK_STATUS.IN_PROGRESS) {
     return task.status;
@@ -39,7 +60,7 @@ export async function getAppState() {
   return state;
 }
 
-export async function createGoal({ title, description, deadline = "", notes = "", status = "INACTIVE" }) {
+export async function createGoal({ title, description, deadline = "", notes = "", status = "INACTIVE", priority = "NORMAL" }) {
   const goals = await storageRepository.getGoals();
   const goalStatus = normalizeGoalStatus(status);
   const goal = {
@@ -49,13 +70,15 @@ export async function createGoal({ title, description, deadline = "", notes = ""
     deadline,
     notes: notes.trim(),
     status: goalStatus,
+    priority: normalizeGoalPriority(priority),
     collapsed: false,
     createdAt: now(),
     startedAt: goalStatus === "ACTIVE" ? now() : null,
     completedAt: null
   };
-  goals.push(goal);
-  await storageRepository.saveGoals(goals);
+
+  const nextGoals = applyGoalPriorityRules([...goals, goal], goal.id, goal.priority);
+  await storageRepository.saveGoals(nextGoals);
   return goal;
 }
 
@@ -66,13 +89,15 @@ export async function updateGoal(goalId, patch) {
 
   const nextGoal = { ...goals[index], ...patch };
   nextGoal.status = normalizeGoalStatus(nextGoal.status ?? goals[index].status ?? "INACTIVE");
+  nextGoal.priority = normalizeGoalPriority(nextGoal.priority ?? goals[index].priority ?? "NORMAL");
+
   if (nextGoal.status === "ACTIVE" && !nextGoal.startedAt) {
     nextGoal.startedAt = now();
   }
 
-  goals[index] = nextGoal;
-  await storageRepository.saveGoals(goals);
-  return goals[index];
+  const nextGoals = applyGoalPriorityRules(goals.map((goal, goalIndex) => goalIndex === index ? nextGoal : goal), goalId, nextGoal.priority);
+  await storageRepository.saveGoals(nextGoals);
+  return nextGoals[index];
 }
 
 export async function deleteGoal(goalId) {

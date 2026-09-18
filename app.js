@@ -333,8 +333,12 @@ function goalCard(goal, tasks) {
   const goalStatus = goal.status === "ACTIVE" ? "Active" : goal.status === "DONE" ? "Done" : "Inactive";
   const goalStatusClass = goal.status === "ACTIVE" ? "active" : goal.status === "DONE" ? "done" : "inactive";
   const goalCardStateClass = goal.status === "ACTIVE" ? "goal-card-active" : goal.status === "DONE" ? "goal-card-done" : "goal-card-inactive";
+  const goalPriority = goal.priority ?? "NORMAL";
+  const goalPriorityClass = goalPriority === "PRIMARY" ? "goal-card-primary" : goalPriority === "SECONDARY" ? "goal-card-secondary" : "";
+  const goalPriorityBadge = goalPriority === "PRIMARY" ? `<span class="badge primary">Primary</span>` : goalPriority === "SECONDARY" ? `<span class="badge secondary">Secondary</span>` : "";
+
   return `
-    <article class="goal-card ${goalCardStateClass}">
+    <article class="goal-card ${goalCardStateClass} ${goalPriorityClass}">
       <div class="goal-head">
         <div><h3>🎯 ${escapeHtml(goal.title)}</h3><p>${escapeHtml(goal.description)}</p></div>
         <div class="row-actions">
@@ -365,6 +369,7 @@ function goalCard(goal, tasks) {
       <div id="goal-content-${goal.id}" class="goal-content"${collapsed ? " hidden" : ""}>
         <div class="goal-meta muted" style="font-size:11px; display:flex; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
           <span class="badge ${goalStatusClass}">${goalStatus}</span>
+          ${goalPriorityBadge}
           <span>Created ${formatDateLabel(goal.createdAt, "—")}</span>
           <span>Started ${formatDateLabel(goal.startedAt, "Not started yet")}</span>
           <span>Deadline ${formatDateLabel(goal.deadline, "No deadline")}</span>
@@ -542,6 +547,7 @@ async function openGoalModal(goalId = null) {
         <label class="label">Status<select class="select" name="status"><option value="INACTIVE" ${goal?.status === "ACTIVE" ? "" : "selected"}>Inactive</option><option value="ACTIVE" ${goal?.status === "ACTIVE" ? "selected" : ""}>Active</option></select></label>
         <label class="label">Deadline (optional)<input class="input" type="date" name="deadline" value="${escapeHtml(goal?.deadline ?? "")}"></label>
       </div>
+      <label class="label">Priority<select class="select" name="priority"><option value="NORMAL" ${goal?.priority !== "PRIMARY" && goal?.priority !== "SECONDARY" ? "selected" : ""}>Normal</option><option value="PRIMARY" ${goal?.priority === "PRIMARY" ? "selected" : ""}>Primary</option><option value="SECONDARY" ${goal?.priority === "SECONDARY" ? "selected" : ""}>Secondary</option></select></label>
       <label class="label">Notes (optional)<input class="input" name="notes" value="${escapeHtml(goal?.notes ?? "")}"></label>
       <div class="muted" style="font-size:11px; margin-top:-4px;">${goal ? `Created ${formatDateLabel(goal.createdAt, "—")} • Started ${formatDateLabel(goal.startedAt, "Not started yet")}` : "New goals start inactive until you activate them."}</div>
       <div class="modal-actions">${goal ? `<button type="button" class="btn danger" id="delete-goal">Delete</button>` : ""}<button type="button" class="btn secondary" id="cancel-modal">Cancel</button><button class="btn" type="submit">${goal ? "Save" : "Create Goal"}</button></div>
