@@ -33,7 +33,7 @@ function applyGoalPriorityRules(goals, goalId, priority) {
 }
 
 function normalizeTaskStatus(task, allTasks) {
-  if (task.status === TASK_STATUS.DONE || task.status === TASK_STATUS.BLOCKED || task.status === TASK_STATUS.NEXT || task.status === TASK_STATUS.TODAY || task.status === TASK_STATUS.IN_PROGRESS) {
+  if (task.status === TASK_STATUS.DONE || task.status === TASK_STATUS.DROPPED || task.status === TASK_STATUS.BLOCKED || task.status === TASK_STATUS.NEXT || task.status === TASK_STATUS.TODAY || task.status === TASK_STATUS.IN_PROGRESS) {
     return task.status;
   }
   const depsReady = (task.dependencyIds ?? []).every((id) => allTasks.find((t) => t.id === id)?.status === TASK_STATUS.DONE);
@@ -159,6 +159,21 @@ export async function removeFromNext(taskId) {
   if (!task) return;
   task.status = normalizeTaskStatus({ ...task, status: TASK_STATUS.READY }, tasks);
   await storageRepository.saveTasks(tasks);
+}
+
+export async function dropTask(taskId) {
+  const [tasks, plans] = await Promise.all([storageRepository.getTasks(), storageRepository.getPlans()]);
+  const task = tasks.find((candidate) => candidate.id === taskId);
+  if (!task) throw new Error("Task not found.");
+  task.status = TASK_STATUS.DROPPED;
+  task.blockedReason = "";
+
+  for (const plan of Object.values(plans)) {
+    if (plan.mainTaskId === taskId) plan.mainTaskId = null;
+    plan.quickTaskIds = (plan.quickTaskIds ?? []).filter((id) => id !== taskId);
+  }
+
+  await Promise.all([storageRepository.saveTasks(tasks), storageRepository.savePlans(plans)]);
 }
 
 export async function makeToday(taskId) {
@@ -296,13 +311,13 @@ export async function convertIdeaToGoal(ideaId) {
 }
 
 export function goalProgress(goalId, tasks) {
-  const goalTasks = tasks.filter((t) => t.goalId === goalId);
+  const goalTasks = tasks.filter((t) => t.goalId === goalId && t.status !== TASK_STATUS.DROPPED);
   if (!goalTasks.length) return 0;
   return Math.round((goalTasks.filter((t) => t.status === TASK_STATUS.DONE).length / goalTasks.length) * 100);
 }
 
 export function goalFrontier(goalId, tasks) {
-  const goalTasks = tasks.filter((t) => t.goalId === goalId && t.status !== TASK_STATUS.DONE);
+  const goalTasks = tasks.filter((t) => t.goalId === goalId && t.status !== TASK_STATUS.DONE && t.status !== TASK_STATUS.DROPPED);
   return goalTasks.find((t) => t.status === TASK_STATUS.IN_PROGRESS)
     ?? goalTasks.find((t) => t.status === TASK_STATUS.TODAY)
     ?? goalTasks.find((t) => t.status === TASK_STATUS.NEXT)

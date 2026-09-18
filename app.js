@@ -1,6 +1,6 @@
 import {
   addQuickTask, blockTask, completeTask, convertIdeaToGoal, createGoal, createIdea, createTask,
-  deleteGoal, deleteIdea, deleteTask, getAppState, getJournalEntry, getRecentJournalDates, goalFrontier,
+  deleteGoal, deleteIdea, deleteTask, dropTask, getAppState, getJournalEntry, getRecentJournalDates, goalFrontier,
   goalProgress, makeToday, promoteToNext, recommendation, removeFromNext, removeQuickTask, removeToday,
   saveJournalEntry, startTask, unblockTask, updateGoal, updateTask
 } from "./src/application/taskService.js";
@@ -325,7 +325,7 @@ function goalDeadlineProgress(goal) {
 
 function goalCard(goal, tasks) {
   const goalTasks = tasks.filter((t) => t.goalId === goal.id);
-  const remaining = goalTasks.filter((t) => t.status !== TASK_STATUS.DONE).length;
+  const remaining = goalTasks.filter((t) => t.status !== TASK_STATUS.DONE && t.status !== TASK_STATUS.DROPPED).length;
   const progress = goalProgress(goal.id, tasks);
   const deadlineProgress = goalDeadlineProgress(goal);
   const frontier = goalFrontier(goal.id, tasks);
@@ -386,10 +386,61 @@ function goalCard(goal, tasks) {
 }
 
 function taskLine(task, goal) {
-  const classes = [task.status === TASK_STATUS.DONE ? "done" : "", task.status === TASK_STATUS.BLOCKED ? "blocked" : ""].join(" ");
-  const statusLabel = task.status === TASK_STATUS.DONE ? "✓" : task.status === TASK_STATUS.BLOCKED ? "!" : task.status === TASK_STATUS.NEXT ? "N" : task.status === TASK_STATUS.TODAY || task.status === TASK_STATUS.IN_PROGRESS ? "T" : "";
+  const classes = [task.status === TASK_STATUS.DONE || task.status === TASK_STATUS.DROPPED ? "done" : "", task.status === TASK_STATUS.BLOCKED ? "blocked" : ""].join(" ");
+  const statusLabel = task.status === TASK_STATUS.DONE ? "✓" : task.status === TASK_STATUS.DROPPED ? "×" : task.status === TASK_STATUS.BLOCKED ? "!" : task.status === TASK_STATUS.NEXT ? "N" : task.status === TASK_STATUS.TODAY || task.status === TASK_STATUS.IN_PROGRESS ? "T" : "";
   const canPromoteToNext = goal?.status !== "INACTIVE";
-  return `<div class="task-line ${classes}"><div class="dot">${statusLabel}</div><div class="grow"><div class="title">${escapeHtml(task.title)}</div>${task.blockedReason ? `<div class="sub">Blocked: ${escapeHtml(task.blockedReason)}</div>` : ""}</div><div class="row-actions"><button class="btn small ghost" data-task-action="info" data-task-id="${task.id}">Info</button>${[TASK_STATUS.BACKLOG, TASK_STATUS.READY].includes(task.status) && canPromoteToNext ? `<button class="btn small secondary" data-task-action="next" data-task-id="${task.id}">Add to NEXT</button>` : ""}${task.status === TASK_STATUS.BLOCKED ? `<button class="btn small secondary" data-task-action="unblock" data-task-id="${task.id}">Unblock</button>` : task.status !== TASK_STATUS.DONE ? `<button class="btn small ghost" data-task-action="block" data-task-id="${task.id}">Block</button>` : ""}<button class="btn small ghost" data-task-action="edit" data-task-id="${task.id}">Edit</button></div></div>`;
+  const canAddToNext = [TASK_STATUS.BACKLOG, TASK_STATUS.READY].includes(task.status) && canPromoteToNext;
+  return `<div class="task-line ${classes}"><div class="dot">${statusLabel}</div><div class="grow"><div class="title">${escapeHtml(task.title)}</div>${task.blockedReason ? `<div class="sub">Blocked: ${escapeHtml(task.blockedReason)}</div>` : ""}</div><div class="row-actions"><button class="btn small ghost" data-task-action="info" data-task-id="${task.id}">Info</button>${canAddToNext ? `<button class="btn small secondary" data-task-action="next" data-task-id="${task.id}">Add to NEXT</button><button class="btn small ghost drop-task" data-task-action="drop" data-task-id="${task.id}">Drop</button>` : ""}${task.status === TASK_STATUS.BLOCKED ? `<button class="btn small secondary" data-task-action="unblock" data-task-id="${task.id}">Unblock</button>` : task.status !== TASK_STATUS.DONE && task.status !== TASK_STATUS.DROPPED ? `<button class="btn small ghost" data-task-action="block" data-task-id="${task.id}">Block</button>` : ""}<button class="btn small ghost" data-task-action="edit" data-task-id="${task.id}">Edit</button></div></div>`;
+}
+
+function renderJournalHeatmap(state, selectedDateKey) {
+  const today = new Date();
+  const endOfWeek = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  endOfWeek.setDate(endOfWeek.getDate() + (6 - endOfWeek.getDay()));
+  const startDate = new Date(endOfWeek);
+  startDate.setDate(startDate.getDate() - (25 * 7 + 6));
+  const weeks = [];
+
+  for (let weekIndex = 0; weekIndex < 26; weekIndex += 1) {
+    const week = [];
+    for (let dayIndex = 0; dayIndex < 7; dayIndex += 1) {
+      const date = new Date(startDate);
+      date.setDate(startDate.getDate() + weekIndex * 7 + dayIndex);
+      const dateKey = todayKey(date);
+      const content = state.journal?.[dateKey]?.content?.trim() ?? "";
+      const level = content ? (content.length > 800 ? 3 : content.length > 240 ? 2 : 1) : 0;
+      const isFuture = date > today;
+      week.push(`<button class="journal-heatmap-cell level-${level}${dateKey === selectedDateKey ? " selected" : ""}${isFuture ? " future" : ""}" data-journal-date="${dateKey}" aria-label="${escapeHtml(formatJournalDate(dateKey))}${content ? ", note saved" : ", no note"}" title="${escapeHtml(formatShortDate(dateKey))}${content ? " · Note saved" : ""}"></button>`);
+    }
+    weeks.push(`<div class="journal-heatmap-week">${week.join("")}</div>`);
+  }
+
+  const monthLabels = [];
+  weeks.forEach((_, weekIndex) => {
+    const date = new Date(startDate);
+    date.setDate(startDate.getDate() + weekIndex * 7);
+    if (weekIndex === 0 || date.getDate() <= 7) {
+      monthLabels.push(`<span style="grid-column:${weekIndex + 2}">${escapeHtml(new Intl.DateTimeFormat(undefined, { month: "short" }).format(date))}</span>`);
+    }
+  });
+
+  return `
+    <section class="journal-heatmap-panel" aria-label="Journal activity">
+      <div class="journal-heatmap-head">
+        <div>
+          <div class="context-kicker">JOURNAL ACTIVITY</div>
+          <div class="context-sub">Select a day to open its note</div>
+        </div>
+        <div class="journal-heatmap-legend"><span>Less</span><i class="level-0"></i><i class="level-1"></i><i class="level-2"></i><i class="level-3"></i><span>More</span></div>
+      </div>
+      <div class="journal-heatmap-scroll">
+        <div class="journal-heatmap-months"><span></span>${monthLabels.join("")}</div>
+        <div class="journal-heatmap-body">
+          <div class="journal-heatmap-weekdays"><span></span><span>Mon</span><span></span><span>Wed</span><span></span><span>Fri</span><span></span></div>
+          <div class="journal-heatmap-grid">${weeks.join("")}</div>
+        </div>
+      </div>
+    </section>`;
 }
 
 function renderJournal(state, dateKey = todayKey()) {
@@ -402,6 +453,7 @@ function renderJournal(state, dateKey = todayKey()) {
 
   viewEl.innerHTML = `
     <section class="journal-container">
+      <div id="journal-heatmap" class="hidden">${renderJournalHeatmap(state, dateKey)}</div>
       <div class="journal-timeline-bar">
         <button class="journal-nav-btn" data-journal-date="${prevDateKey}">
           <span class="arrow">←</span>
@@ -409,7 +461,7 @@ function renderJournal(state, dateKey = todayKey()) {
         </button>
 
         <div class="journal-date-heading">
-          <h2>${escapeHtml(dateDisplay)}</h2>
+          <h2 id="journal-date-toggle" role="button" tabindex="0" aria-expanded="false" aria-controls="journal-heatmap" title="Show journal calendar">${escapeHtml(dateDisplay)}</h2>
           ${isToday ? `<span class="badge journal-today-badge">Today</span>` : `<button class="btn small ghost" id="jump-today-btn">Jump to Today</button>`}
         </div>
 
@@ -457,6 +509,23 @@ function renderJournal(state, dateKey = todayKey()) {
     editor.focus();
     const len = editor.value.length;
     editor.setSelectionRange(len, len);
+  }
+
+  const heatmap = $("#journal-heatmap");
+  const dateToggle = $("#journal-date-toggle");
+  if (heatmap && dateToggle) {
+    const toggleHeatmap = () => {
+      const isHidden = heatmap.classList.toggle("hidden");
+      dateToggle.setAttribute("aria-expanded", String(!isHidden));
+      dateToggle.title = isHidden ? "Show journal calendar" : "Hide journal calendar";
+    };
+    dateToggle.onclick = toggleHeatmap;
+    dateToggle.onkeydown = (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        toggleHeatmap();
+      }
+    };
   }
 
   // Timeline button listeners
@@ -744,6 +813,7 @@ function bindCommonActions() {
       switch (el.dataset.taskAction) {
         case "next": await promoteToNext(id); break;
         case "remove-next": await removeFromNext(id); break;
+        case "drop": await dropTask(id); break;
         case "today": await makeToday(id); break;
         case "remove-today": await removeToday(id); break;
         case "quick": await addQuickTask(id); break;

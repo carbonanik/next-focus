@@ -5,6 +5,7 @@ export const TASK_STATUS = Object.freeze({
   TODAY: "TODAY",
   IN_PROGRESS: "IN_PROGRESS",
   DONE: "DONE",
+  DROPPED: "DROPPED",
   BLOCKED: "BLOCKED"
 });
 
