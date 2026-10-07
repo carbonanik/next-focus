@@ -190,7 +190,7 @@ function openModal(html) {
 /* System Telemetry & Date Matrix */
 function updateSystemDateMetadata(date = new Date()) {
   const dayOfYear = Math.floor((date - new Date(date.getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24));
-  
+
   // ISO Week Calculation
   const target = new Date(date.valueOf());
   const dayNr = (date.getDay() + 6) % 7;
@@ -245,7 +245,7 @@ async function render(view = currentView) {
     history: "HISTORY"
   };
   titleEl.textContent = viewTitles[view] ?? view.toUpperCase();
-  
+
   $$("nav .nav-btn").forEach((b) => {
     const isActive = b.dataset.view === view;
     b.classList.toggle("active", isActive);
@@ -332,7 +332,7 @@ function renderToday(state) {
   const goals = new Map(state.goals.map((g) => [g.id, g]));
   const main = state.tasks.find((t) => t.id === plan.mainTaskId && t.status !== TASK_STATUS.DONE);
   const quick = (plan.quickTaskIds ?? []).map((id) => state.tasks.find((t) => t.id === id)).filter(Boolean).filter((t) => t.status !== TASK_STATUS.DONE);
-  
+
   // Real recommendation or authentic fallback matching the reference mockup
   let rec = recommendation(state.tasks);
   let isMockRec = false;
@@ -349,11 +349,11 @@ function renderToday(state) {
   }
 
   // 1. Primary Objective Header & Columns
-  const statusHtml = main 
-    ? `STATUS : <span class="status-active">ACTIVE // IN FOCUS</span>` 
+  const statusHtml = main
+    ? `STATUS : <span class="status-active">ACTIVE // IN FOCUS</span>`
     : `STATUS : <span class="status-unscheduled">UNSCHEDULED</span>`;
-  const refCode = main 
-    ? `REF. TSK-${main.id.slice(0, 4).toUpperCase()}` 
+  const refCode = main
+    ? `REF. TSK-${main.id.slice(0, 4).toUpperCase()}`
     : (rec ? `REF. TSK-${rec.id.length > 4 ? rec.id.slice(0, 4).toUpperCase() : rec.id}` : `REF. TSK-000`);
 
   let directiveHtml = "";
@@ -545,11 +545,11 @@ function renderToday(state) {
     reportBodyHtml = `
       <div class="report-tasks-list">
         ${contextTasks.map((item) => {
-          const isDone = item.task.status === TASK_STATUS.DONE;
-          const isMain = item.role === "main";
-          const sym = isDone ? "[✓]" : isMain ? "[★]" : "[○]";
-          const roleBadge = isMain ? `<span class="report-entry-badge">MAIN</span>` : item.role === "quick" ? `<span class="report-entry-badge">QUICK</span>` : "";
-          return `
+      const isDone = item.task.status === TASK_STATUS.DONE;
+      const isMain = item.role === "main";
+      const sym = isDone ? "[✓]" : isMain ? "[★]" : "[○]";
+      const roleBadge = isMain ? `<span class="report-entry-badge">MAIN</span>` : item.role === "quick" ? `<span class="report-entry-badge">QUICK</span>` : "";
+      return `
             <div class="report-task-entry ${isDone ? "done" : ""}">
               <span class="report-sym">${sym}</span>
               <span class="report-entry-title">${escapeHtml(item.task.title)}</span>
@@ -557,7 +557,7 @@ function renderToday(state) {
               <span style="font-size:9px;color:var(--text-dim);">${escapeHtml(item.goal?.title ?? "GOAL")}</span>
             </div>
           `;
-        }).join("")}
+    }).join("")}
       </div>
     `;
   }
@@ -648,7 +648,7 @@ function preparedTaskCard(task, index, goal, plan) {
             <span class="prepared-ref">REF. TSK-${task.id.slice(0, 4).toUpperCase()}</span>
           </div>
           <h3 class="prepared-card-title">${escapeHtml(task.title)}</h3>
-          <div class="prepared-card-goal">🎯 <strong>TARGET GOAL:</strong> ${escapeHtml(goalTitle)}</div>
+          <div class="prepared-card-goal">◎ <strong>TARGET GOAL:</strong> ${escapeHtml(goalTitle)}</div>
         </div>
         <div class="row-actions">
           <button class="btn small ghost" data-task-action="info" data-task-id="${task.id}">Info</button>
@@ -759,23 +759,23 @@ function renderCompletionChart(tasks) {
       </div>
       <div class="chart-grid">
         ${chartData.map((day) => {
-          const count = day.count;
-          let barBg = "transparent";
-          let barShadow = "none";
-          let barBorderTop = "none";
+    const count = day.count;
+    let barBg = "transparent";
+    let barShadow = "none";
+    let barBorderTop = "none";
 
-          if (count >= 10) {
-            barBg = "#FFFFFF";
-            barShadow = "0 0 8px rgba(255, 255, 255, 0.6)";
-            barBorderTop = "1px solid #FFFFFF";
-          } else if (count > 0) {
-            const alpha = Math.min(1, Math.max(0.12, count / 10)).toFixed(2);
-            barBg = `rgba(255, 255, 255, ${alpha})`;
-            barBorderTop = `1px solid rgba(255, 255, 255, ${Math.min(1, parseFloat(alpha) + 0.25).toFixed(2)})`;
-          }
+    if (count >= 10) {
+      barBg = "#FFFFFF";
+      barShadow = "0 0 8px rgba(255, 255, 255, 0.6)";
+      barBorderTop = "1px solid #FFFFFF";
+    } else if (count > 0) {
+      const alpha = Math.min(1, Math.max(0.12, count / 10)).toFixed(2);
+      barBg = `rgba(255, 255, 255, ${alpha})`;
+      barBorderTop = `1px solid rgba(255, 255, 255, ${Math.min(1, parseFloat(alpha) + 0.25).toFixed(2)})`;
+    }
 
-          const occupiedHeight = count ? Math.min(100, Math.max(14, (count / Math.max(maxCount, 10)) * 100)) : 0;
-          return `
+    const occupiedHeight = count ? Math.min(100, Math.max(14, (count / Math.max(maxCount, 10)) * 100)) : 0;
+    return `
             <div class="chart-day" title="${escapeHtml(day.shortLabel)}: ${count} resolved">
               <div class="chart-value ${count >= 10 ? "max-val" : count > 0 ? "active-val" : ""}">${count}</div>
               <div class="chart-bar-wrap">
@@ -783,7 +783,7 @@ function renderCompletionChart(tasks) {
               </div>
               <div class="chart-label">${day.shortLabel}</div>
             </div>`;
-        }).join("")}
+  }).join("")}
       </div>
     </section>`;
 }
@@ -829,7 +829,7 @@ function goalCard(goal, tasks) {
             ${goalPriorityBadge}
             <span class="goal-ref">REF. GOL-${goal.id.slice(0, 4).toUpperCase()}</span>
           </div>
-          <h3>🎯 ${escapeHtml(goal.title)}</h3>
+          <h3>◎ ${escapeHtml(goal.title)}</h3>
           <p>${escapeHtml(goal.description)}</p>
         </div>
         <div class="row-actions">
@@ -847,7 +847,7 @@ function goalCard(goal, tasks) {
           <button
             class="btn small secondary"
             data-goal-action="suggest"
-            data-goal-id="${goal.id}">✨ Suggest</button>
+            data-goal-id="${goal.id}">✦ Suggest</button>
           <button
             class="btn small secondary"
             data-create-task-for="${goal.id}">+ Task</button>
@@ -1053,7 +1053,7 @@ function renderIdeas(state) {
   viewEl.innerHTML = `
     <div class="section-title"><div><h2>Ideas are not commitments.</h2><div class="muted" style="font-size:12px;margin-top:4px">Capture quickly. Decide later whether an idea deserves a Goal.</div></div><button class="btn" data-create="idea">+ Capture Idea</button></div>
     <div class="idea-list">
-      ${state.ideas.length ? state.ideas.map((idea) => `<article class="idea-card"><div class="idea-icon">💡</div><div class="grow"><div class="title">${escapeHtml(idea.title)}</div>${idea.notes ? `<div class="sub">${escapeHtml(idea.notes)}</div>` : ""}</div><div class="row-actions"><button class="btn small secondary" data-idea-action="convert" data-idea-id="${idea.id}">Make Goal</button><button class="btn small ghost" data-idea-action="delete" data-idea-id="${idea.id}">Delete</button></div></article>`).join("") : `<div class="empty"><h2 style="color:var(--text)">Have an idea?</h2><p>Capture it here without committing to it.</p><button class="btn" data-create="idea">+ Capture Idea</button></div>`}
+      ${state.ideas.length ? state.ideas.map((idea) => `<article class="idea-card"><div class="idea-icon">◇</div><div class="grow"><div class="title">${escapeHtml(idea.title)}</div>${idea.notes ? `<div class="sub">${escapeHtml(idea.notes)}</div>` : ""}</div><div class="row-actions"><button class="btn small secondary" data-idea-action="convert" data-idea-id="${idea.id}">Make Goal</button><button class="btn small ghost" data-idea-action="delete" data-idea-id="${idea.id}">Delete</button></div></article>`).join("") : `<div class="empty"><h2 style="color:var(--text)">Have an idea?</h2><p>Capture it here without committing to it.</p><button class="btn" data-create="idea">+ Capture Idea</button></div>`}
     </div>`;
   bindCommonActions();
 }

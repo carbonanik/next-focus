@@ -13,7 +13,7 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background-color: var(--bg);
+  background-color: transparent;
   color: var(--text);
   font-family: var(--font-mono);
 }
@@ -90,6 +90,8 @@ body {
   align-items: flex-start;
   border: 1px solid var(--border-subtle);
   background: var(--surface);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   padding: 10px 14px;
 }
 
@@ -121,6 +123,8 @@ body {
 
 .auth-card {
   background: var(--surface);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--border-bright);
   padding: 28px;
   position: relative;

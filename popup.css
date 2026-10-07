@@ -5,7 +5,7 @@
 body {
   width: 380px;
   min-height: 520px;
-  background-color: var(--bg);
+  background-color: transparent;
   color: var(--text);
   font-family: var(--font-mono);
   overflow-x: hidden;
