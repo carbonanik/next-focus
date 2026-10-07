@@ -59,8 +59,9 @@ async function flushJournalSave() {
     const text = editor.value;
     const date = editor.dataset.date;
     try {
-      await saveJournalEntry(date, text);
+      const savedEntry = await saveJournalEntry(date, text);
       setJournalStatus("Saved");
+      return savedEntry;
     } catch (e) {
       setJournalStatus("Save failed");
     }
@@ -325,7 +326,9 @@ function goalDeadlineProgress(goal) {
 
 function goalCard(goal, tasks) {
   const goalTasks = tasks.filter((t) => t.goalId === goal.id);
-  const remaining = goalTasks.filter((t) => t.status !== TASK_STATUS.DONE && t.status !== TASK_STATUS.DROPPED).length;
+  const remainingTasks = goalTasks.filter((t) => t.status !== TASK_STATUS.DONE && t.status !== TASK_STATUS.DROPPED);
+  const doneTasks = goalTasks.filter((t) => t.status == TASK_STATUS.DONE || t.status === TASK_STATUS.DROPPED);
+  const remaining = remainingTasks.length;
   const progress = goalProgress(goal.id, tasks);
   const deadlineProgress = goalDeadlineProgress(goal);
   const frontier = goalFrontier(goal.id, tasks);
@@ -379,7 +382,7 @@ function goalCard(goal, tasks) {
         ${deadlineProgress !== null ? `<div class="progress deadline-progress"><span style="width:${deadlineProgress}%"></span></div>` : ""}
         ${frontier ? `<div class="frontier"><div><div class="muted">CURRENT FRONTIER</div><strong>→ ${escapeHtml(frontier.title)}</strong></div><div class="row-actions">${frontier.status === TASK_STATUS.READY || frontier.status === TASK_STATUS.BACKLOG ? `<button class="btn small" data-task-action="next" data-task-id="${frontier.id}">Add to NEXT</button>` : ""}${frontier.status === TASK_STATUS.BLOCKED ? `<span class="badge blocked">Blocked</span>` : ""}</div></div>` : ""}
         <div class="goal-tasks">
-          ${goalTasks.length ? goalTasks.map((t) => taskLine(t, goal)).join("") : `<div class="muted" style="font-size:12px;padding:10px 2px">No tasks yet. Break this goal into executable actions.</div>`}
+          ${goalTasks.length ? remainingTasks.map((t) => taskLine(t, goal)).join("") + doneTasks.map((t) => taskLine(t, goal)).join("") : `<div class="muted" style="font-size:12px;padding:10px 2px">No tasks yet. Break this goal into executable actions.</div>`}
         </div>
       </div>
     </article>`;
@@ -531,7 +534,8 @@ function renderJournal(state, dateKey = todayKey()) {
   // Timeline button listeners
   $$("[data-journal-date]").forEach((btn) => {
     btn.onclick = async () => {
-      await flushJournalSave();
+      const savedEntry = await flushJournalSave();
+      if (savedEntry) state.journal[savedEntry.date] = savedEntry;
       renderJournal(state, btn.dataset.journalDate);
     };
   });
@@ -539,7 +543,8 @@ function renderJournal(state, dateKey = todayKey()) {
   const jumpTodayBtn = $("#jump-today-btn");
   if (jumpTodayBtn) {
     jumpTodayBtn.onclick = async () => {
-      await flushJournalSave();
+      const savedEntry = await flushJournalSave();
+      if (savedEntry) state.journal[savedEntry.date] = savedEntry;
       renderJournal(state, todayKey());
     };
   }
