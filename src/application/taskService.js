@@ -101,9 +101,16 @@ export async function updateGoal(goalId, patch) {
 }
 
 export async function deleteGoal(goalId) {
-  const [goals, tasks] = await Promise.all([storageRepository.getGoals(), storageRepository.getTasks()]);
-  await storageRepository.saveGoals(goals.filter((g) => g.id !== goalId));
-  await storageRepository.saveTasks(tasks.filter((t) => t.goalId !== goalId));
+  const [goals, tasks, habits] = await Promise.all([
+    storageRepository.getGoals(),
+    storageRepository.getTasks(),
+    storageRepository.getHabits()
+  ]);
+  await Promise.all([
+    storageRepository.saveGoals(goals.filter((g) => g.id !== goalId)),
+    storageRepository.saveTasks(tasks.filter((t) => t.goalId !== goalId)),
+    storageRepository.saveHabits(habits.map((habit) => habit.goalId === goalId ? { ...habit, goalId: null } : habit))
+  ]);
 }
 
 export async function createTask({ title, goalId, estimatedMinutes = null, notes = "", dependencyIds = [] }) {

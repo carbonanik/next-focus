@@ -6,10 +6,11 @@ const GUEST_KEYS = {
   tasks: "nextfocus_tasks",
   ideas: "nextfocus_ideas",
   plans: "nextfocus_daily_plans",
-  journal: "nextfocus_journal"
+  journal: "nextfocus_journal",
+  habits: "nextfocus_habits"
 };
 
-const DEFAULTS = { goals: [], tasks: [], ideas: [], plans: {}, journal: {} };
+const DEFAULTS = { goals: [], tasks: [], ideas: [], plans: {}, journal: {}, habits: [] };
 const freshDefault = (section) => section === "plans" || section === "journal" ? {} : [];
 const pendingSectionKey = (uid, section) => `nextfocus_user_${uid}_pending_${section}`;
 const pendingKeys = (uid) => Object.fromEntries(Object.keys(DEFAULTS).map((section) => [section, pendingSectionKey(uid, section)]));
@@ -22,7 +23,8 @@ function hasMeaningfulData(state) {
     state.tasks?.length ||
     state.ideas?.length ||
     Object.keys(state.plans ?? {}).length ||
-    Object.keys(state.journal ?? {}).length
+    Object.keys(state.journal ?? {}).length ||
+    state.habits?.length
   );
 }
 
@@ -41,6 +43,8 @@ class HybridStorageRepository {
   async savePlans(value) { return this.#save("plans", value); }
   async getJournal() { return this.#get("journal"); }
   async saveJournal(value) { return this.#save("journal", value); }
+  async getHabits() { return this.#get("habits"); }
+  async saveHabits(value) { return this.#save("habits", value); }
 
   async loadAll() {
     const access = await authRepository.getAccessState();
@@ -52,7 +56,8 @@ class HybridStorageRepository {
       tasks: data[keys.tasks] ?? [],
       ideas: data[keys.ideas] ?? [],
       plans: data[keys.plans] ?? {},
-      journal: data[keys.journal] ?? {}
+      journal: data[keys.journal] ?? {},
+      habits: data[keys.habits] ?? []
     };
   }
 
@@ -130,7 +135,7 @@ class HybridStorageRepository {
       if (sync.pending.length) return { restored: false, migrated: false, offline: true };
     }
 
-    let cloud = { goals: null, tasks: null, ideas: null, plans: null };
+    let cloud = { goals: null, tasks: null, ideas: null, plans: null, journal: null, habits: null };
     try { cloud = await cloudStore.getAll(uid); } catch (error) {
       if (!existing[marker]) {
         // The account can still work from its UID-scoped local cache while offline.
@@ -178,7 +183,8 @@ class HybridStorageRepository {
       tasks: data[GUEST_KEYS.tasks] ?? [],
       ideas: data[GUEST_KEYS.ideas] ?? [],
       plans: data[GUEST_KEYS.plans] ?? {},
-      journal: data[GUEST_KEYS.journal] ?? {}
+      journal: data[GUEST_KEYS.journal] ?? {},
+      habits: data[GUEST_KEYS.habits] ?? []
     };
   }
 

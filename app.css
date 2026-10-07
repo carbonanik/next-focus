@@ -2485,3 +2485,284 @@ nav {
     align-items: flex-start;
   }
 }
+
+/* Habit check-ins stay visually secondary to the primary task. */
+.today-habit-list {
+  padding: 4px 16px;
+}
+
+.today-habit-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 48px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.today-habit-row:last-child {
+  border-bottom: 0;
+}
+
+.today-habit-name {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.today-habit-name span {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-dim);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+}
+
+.habit-checkin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.habit-checkin-actions.compact .btn {
+  min-width: 64px;
+}
+
+.today-habits-empty,
+.today-habits-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.today-habits-footer {
+  justify-content: flex-end;
+  padding-top: 4px;
+}
+
+.habit-page-title {
+  margin-bottom: 28px;
+}
+
+.habit-group {
+  margin: 24px 0 34px;
+}
+
+.habit-group-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+
+.habit-group-heading h2 {
+  margin: 0;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+}
+
+.habit-group-heading > span {
+  color: var(--text-dim);
+  font-size: 10px;
+}
+
+.habit-list {
+  display: grid;
+  gap: 10px;
+}
+
+.habit-card {
+  border: 1px solid var(--border);
+  background: rgba(12, 15, 14, 0.78);
+  padding: 16px;
+}
+
+.habit-card.paused,
+.habit-card.archived {
+  opacity: 0.68;
+}
+
+.habit-card-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.habit-card-type,
+.habit-goal-link,
+.habit-not-scheduled,
+.habit-paused-note {
+  color: var(--text-dim);
+  font-size: 9px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.habit-card-type span {
+  color: var(--accent);
+}
+
+.habit-card-heading h3 {
+  margin: 7px 0 4px;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.habit-card-description {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.habit-card-description span {
+  display: block;
+  margin-top: 5px;
+  color: var(--text-dim);
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.habit-goal-link {
+  margin-top: 8px;
+  color: var(--accent-cyan);
+}
+
+.habit-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-content: flex-start;
+  gap: 6px;
+}
+
+.habit-week-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin: 16px 0 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.habit-week-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-dim);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+
+.habit-week-label strong {
+  color: var(--text);
+  font-size: 12px;
+  letter-spacing: normal;
+}
+
+.habit-week-dots {
+  display: flex;
+  gap: 5px;
+}
+
+.habit-week-day {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.habit-week-day.current {
+  border-color: var(--border-bright);
+}
+
+.habit-week-day.success {
+  color: var(--accent-cyan);
+  border-color: rgba(131, 168, 166, 0.42);
+}
+
+.habit-week-day.broken {
+  color: var(--accent-red);
+  border-color: rgba(216, 101, 80, 0.42);
+}
+
+.habit-not-scheduled,
+.habit-paused-note {
+  padding-top: 2px;
+}
+
+.habit-empty {
+  margin: 20px 0;
+}
+
+.habit-form-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.habit-days-field {
+  border: 1px solid var(--border);
+  padding: 10px 12px 12px;
+}
+
+.habit-days-field[hidden],
+#habit-target-field[hidden] {
+  display: none;
+}
+
+.habit-days-field legend {
+  padding: 0 5px;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.habit-day-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.habit-day-options label {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+#habit-version-fields[hidden] {
+  display: none;
+}
+
+@media (max-width: 680px) {
+  .today-habit-row,
+  .habit-card-top {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .habit-card-actions {
+    justify-content: flex-start;
+  }
+
+  .habit-week-summary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .habit-form-pair {
+    grid-template-columns: 1fr;
+  }
+}

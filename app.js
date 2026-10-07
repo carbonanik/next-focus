@@ -4,6 +4,10 @@ import {
   goalProgress, makeToday, promoteToNext, recommendation, removeFromNext, removeQuickTask, removeToday,
   saveJournalEntry, startTask, unblockTask, updateGoal, updateTask
 } from "./src/application/taskService.js";
+import {
+  checkInHabit, createHabit, getHabitWeekDates, getHabitWeeklySummary, isHabitScheduled,
+  setHabitStatus, updateHabit
+} from "./src/application/habitService.js";
 import { TASK_STATUS } from "./src/domain/constants.js";
 import {
   escapeHtml, formatDate, formatJournalDate, formatShortDate, formatTimeOnly,
@@ -240,6 +244,7 @@ async function render(view = currentView) {
     today: "TODAY",
     next: "NEXT",
     later: "LATER",
+    habits: "HABITS",
     journal: "JOURNAL",
     ideas: "IDEAS",
     history: "HISTORY"
@@ -260,6 +265,7 @@ async function render(view = currentView) {
   if (view === "today") renderToday(state);
   if (view === "next") renderNext(state);
   if (view === "later") renderLater(state);
+  if (view === "habits") renderHabits(state);
   if (view === "journal") renderJournal(state, currentJournalDate);
   if (view === "ideas") renderIdeas(state);
   if (view === "history") renderHistory(state);
@@ -324,6 +330,229 @@ function openQuickAddModal(state) {
     closeModal();
     render("today");
     toast("Auxiliary task queued.");
+  };
+}
+
+const habitDayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function habitFrequencyLabel(habit) {
+  const schedule = habit.schedule ?? { type: "DAILY" };
+  if (schedule.type === "WEEKDAYS") return "WEEKDAYS";
+  if (schedule.type === "SPECIFIC_DAYS") {
+    return (schedule.days ?? []).map((day) => habitDayNames[day]).join(" / ") || "CUSTOM DAYS";
+  }
+  if (schedule.type === "WEEKLY_TARGET") return `${schedule.targetPerWeek ?? 1}× / WEEK`;
+  return "EVERY DAY";
+}
+
+function habitCheckinActions(habit, compact = false) {
+  const log = habit.logs?.[todayKey()];
+  const actions = habit.type === "AVOID"
+    ? [["kept", "Kept"], ["broken", "Broke"]]
+    : [["done", "Done"], ...(habit.minimum ? [["minimum", "Minimum"]] : [])];
+  return `
+    <div class="habit-checkin-actions ${compact ? "compact" : ""}">
+      ${actions.map(([value, label]) => `
+        <button class="btn small ${log === value ? "signal-filled" : "secondary"}"
+          data-habit-checkin="${escapeHtml(habit.id)}" data-checkin-value="${value}">${label}${log === value ? " ✓" : ""}</button>
+      `).join("")}
+      ${log ? `<button class="btn small ghost" data-habit-checkin="${escapeHtml(habit.id)}" data-checkin-value="clear">Undo</button>` : ""}
+    </div>
+  `;
+}
+
+function renderTodayHabits(state) {
+  const activeHabits = (state.habits ?? []).filter((habit) => habit.status === "ACTIVE");
+  const due = activeHabits.filter((habit) => isHabitScheduled(habit));
+  const checked = due.filter((habit) => {
+    const value = habit.logs?.[todayKey()];
+    return habit.type === "AVOID" ? value === "kept" : value === "done" || value === "minimum";
+  }).length;
+  return `
+    <section class="tech-panel">
+      <div class="panel-header-strip">
+        <div class="panel-header-left"><span class="panel-title">HABITS</span><span class="barcode-strip"></span></div>
+        <div class="panel-header-right"><span>${checked} / ${due.length} CHECKED IN</span><span class="slot">↻</span></div>
+      </div>
+      ${due.length ? `
+        <div class="today-habit-list">
+          ${due.map((habit) => `
+            <div class="today-habit-row">
+              <div class="today-habit-name">${escapeHtml(habit.name)}<span>${escapeHtml(habit.type === "AVOID" ? "AVOID" : habit.normal || "REPEAT")}</span></div>
+              ${habitCheckinActions(habit, true)}
+            </div>
+          `).join("")}
+        </div>
+      ` : `<div class="today-habits-empty">${activeHabits.length
+        ? "No habits scheduled today. Keep the space clear."
+        : "No active habits yet."}
+        ${activeHabits.length
+          ? `<button class="btn small ghost" data-go="habits">View habits</button>`
+          : `<button class="btn small secondary" data-create-habit>+ Create habit</button>`}
+      </div>`}
+      ${due.length ? `<div class="today-habits-footer"><button class="btn small ghost" data-go="habits">View all habits</button></div>` : ""}
+    </section>
+  `;
+}
+
+function renderHabitCard(habit, goals) {
+  const summary = getHabitWeeklySummary(habit);
+  const dates = getHabitWeekDates();
+  const currentLog = habit.logs?.[todayKey()];
+  const goal = goals.get(habit.goalId);
+  const statusAction = habit.status === "ACTIVE" ? "PAUSED" : "ACTIVE";
+  const statusLabel = habit.status === "ACTIVE" ? "Pause" : habit.status === "PAUSED" ? "Resume" : "Restore";
+  return `
+    <article class="habit-card ${habit.status.toLowerCase()}">
+      <div class="habit-card-top">
+        <div class="habit-card-heading">
+          <div class="habit-card-type">${habit.type === "AVOID" ? "AVOID HABIT" : "DO HABIT"} <span>·</span> ${escapeHtml(habitFrequencyLabel(habit))}</div>
+          <h3>${escapeHtml(habit.name)}</h3>
+          ${habit.type === "DO" ? `<div class="habit-card-description">${escapeHtml(habit.normal || "")}${habit.minimum ? `<span>MINIMUM · ${escapeHtml(habit.minimum)}</span>` : ""}</div>` : ""}
+          ${goal ? `<div class="habit-goal-link">LINKED GOAL · ${escapeHtml(goal.title)}</div>` : ""}
+        </div>
+        <div class="habit-card-actions">
+          <button class="btn small ghost" data-habit-edit="${escapeHtml(habit.id)}">Edit</button>
+          <button class="btn small secondary" data-habit-status="${escapeHtml(habit.id)}" data-status-value="${statusAction}">${statusLabel}</button>
+          ${habit.status === "ARCHIVED" ? "" : `<button class="btn small ghost" data-habit-status="${escapeHtml(habit.id)}" data-status-value="ARCHIVED">Archive</button>`}
+        </div>
+      </div>
+      <div class="habit-week-summary">
+        <div class="habit-week-label"><span>THIS WEEK</span><strong>${summary.completed} / ${summary.target}</strong></div>
+        <div class="habit-week-dots" aria-label="${summary.completed} of ${summary.target} weekly commitments">
+          ${dates.map((date) => {
+            const log = habit.logs?.[date];
+            const success = habit.type === "AVOID" ? log === "kept" : log === "done" || log === "minimum";
+            const mark = log === "broken" ? "×" : log === "minimum" ? "~" : success ? "✓" : "·";
+            const label = new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { weekday: "short" });
+            return `<span class="habit-week-day ${success ? "success" : ""} ${log === "broken" ? "broken" : ""} ${date === todayKey() ? "current" : ""}" title="${escapeHtml(`${label} · ${log || "no check-in"}`)}">${mark}</span>`;
+          }).join("")}
+        </div>
+      </div>
+      ${habit.status === "ACTIVE" ? `
+        ${isHabitScheduled(habit) ? habitCheckinActions(habit) : `<div class="habit-not-scheduled">Not scheduled today${currentLog ? " · check-in recorded" : ""}</div>`}
+      ` : `<div class="habit-paused-note">${habit.status === "PAUSED" ? "PAUSED · HISTORY IS KEPT" : "ARCHIVED · HISTORY IS KEPT"}</div>`}
+    </article>
+  `;
+}
+
+function renderHabits(state) {
+  const goals = new Map(state.goals.map((goal) => [goal.id, goal]));
+  const habits = state.habits ?? [];
+  const active = habits.filter((habit) => habit.status === "ACTIVE");
+  const paused = habits.filter((habit) => habit.status === "PAUSED");
+  const archived = habits.filter((habit) => habit.status === "ARCHIVED");
+  const renderGroup = (title, entries) => entries.length ? `
+    <section class="habit-group">
+      <div class="habit-group-heading"><h2>${title}</h2><span>${String(entries.length).padStart(2, "0")}</span></div>
+      <div class="habit-list">${entries.map((habit) => renderHabitCard(habit, goals)).join("")}</div>
+    </section>
+  ` : "";
+  viewEl.innerHTML = `
+    <div class="section-title habit-page-title">
+      <div><h2>Repeat what matters.</h2><div class="muted" style="font-size:12px;margin-top:4px">Small commitments, steady consistency. No streak pressure.</div></div>
+      <button class="btn signal-filled" data-create-habit>+ New habit</button>
+    </div>
+    ${renderGroup("ACTIVE", active)}
+    ${!active.length ? `<div class="empty habit-empty">No active habits. Add one small behavior you want to repeat.</div>` : ""}
+    ${renderGroup("PAUSED", paused)}
+    ${renderGroup("ARCHIVED", archived)}
+  `;
+  bindCommonActions();
+}
+
+function openHabitModal(state, habit = null) {
+  const selectedDays = new Set(habit?.schedule?.days ?? []);
+  const selectedFrequency = habit?.schedule?.type ?? "DAILY";
+  const dayOptions = [1, 2, 3, 4, 5, 6, 0];
+  const goals = state.goals.filter((goal) => goal.status !== "DONE" || goal.id === habit?.goalId);
+  openModal(`
+    <h2>${habit ? "Edit habit" : "New habit"}</h2>
+    <p>A habit is a repeatable behavior, not another task in your queue.</p>
+    <form id="habit-form" class="form-grid">
+      <label class="label">Name
+        <input class="input" name="name" maxlength="100" required value="${escapeHtml(habit?.name ?? "")}" placeholder="DSA practice">
+      </label>
+      <label class="label">Habit type
+        <select class="select" name="type" id="habit-type">
+          <option value="DO" ${habit?.type !== "AVOID" ? "selected" : ""}>Do something</option>
+          <option value="AVOID" ${habit?.type === "AVOID" ? "selected" : ""}>Avoid something</option>
+        </select>
+      </label>
+      <div id="habit-version-fields" class="habit-form-pair">
+        <label class="label">Normal version
+          <input class="input" name="normal" maxlength="120" required value="${escapeHtml(habit?.normal ?? "")}" placeholder="Practice for 45 minutes">
+        </label>
+        <label class="label">Minimum version
+          <input class="input" name="minimum" maxlength="120" required value="${escapeHtml(habit?.minimum ?? "")}" placeholder="Review one problem">
+        </label>
+      </div>
+      <label class="label">Frequency
+        <select class="select" name="frequency" id="habit-frequency">
+          <option value="DAILY" ${selectedFrequency === "DAILY" ? "selected" : ""}>Every day</option>
+          <option value="WEEKDAYS" ${selectedFrequency === "WEEKDAYS" ? "selected" : ""}>Weekdays</option>
+          <option value="SPECIFIC_DAYS" ${selectedFrequency === "SPECIFIC_DAYS" ? "selected" : ""}>Specific days</option>
+          <option value="WEEKLY_TARGET" ${selectedFrequency === "WEEKLY_TARGET" ? "selected" : ""}>Times per week</option>
+        </select>
+      </label>
+      <fieldset class="habit-days-field" id="habit-days-field" ${selectedFrequency === "SPECIFIC_DAYS" ? "" : "hidden"}>
+        <legend>Choose days</legend>
+        <div class="habit-day-options">
+          ${dayOptions.map((day) => `<label><input type="checkbox" name="days" value="${day}" ${selectedDays.has(day) ? "checked" : ""}> ${habitDayNames[day]}</label>`).join("")}
+        </div>
+      </fieldset>
+      <label class="label" id="habit-target-field" ${selectedFrequency === "WEEKLY_TARGET" ? "" : "hidden"}>Times per week
+        <input class="input" type="number" name="targetPerWeek" min="1" max="7" value="${habit?.schedule?.targetPerWeek ?? 3}">
+      </label>
+      <label class="label">Linked goal <span class="muted">(optional)</span>
+        <select class="select" name="goalId">
+          <option value="">No linked goal</option>
+          ${goals.map((goal) => `<option value="${escapeHtml(goal.id)}" ${habit?.goalId === goal.id ? "selected" : ""}>${escapeHtml(goal.title)}</option>`).join("")}
+        </select>
+      </label>
+      <div class="modal-actions">
+        <button type="button" class="btn secondary" id="cancel-modal">Cancel</button>
+        <button class="btn signal-filled" type="submit">${habit ? "Save habit" : "Create habit"}</button>
+      </div>
+    </form>
+  `);
+  $("#cancel-modal").onclick = closeModal;
+  const frequency = $("#habit-frequency");
+  const type = $("#habit-type");
+  const updateConditionalFields = () => {
+    $("#habit-days-field").hidden = frequency.value !== "SPECIFIC_DAYS";
+    $("#habit-target-field").hidden = frequency.value !== "WEEKLY_TARGET";
+    $("#habit-version-fields").hidden = type.value === "AVOID";
+    $("#habit-form [name='normal']").required = type.value === "DO";
+    $("#habit-form [name='minimum']").required = type.value === "DO";
+  };
+  frequency.onchange = updateConditionalFields;
+  type.onchange = updateConditionalFields;
+  updateConditionalFields();
+  $("#habit-form").onsubmit = async (event) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const habitInput = {
+      name: form.get("name"),
+      type: form.get("type"),
+      normal: form.get("normal"),
+      minimum: form.get("minimum"),
+      goalId: form.get("goalId"),
+      schedule: {
+        type: form.get("frequency"),
+        days: form.getAll("days"),
+        targetPerWeek: form.get("targetPerWeek")
+      }
+    };
+    try {
+      if (habit) await updateHabit(habit.id, habitInput);
+      else await createHabit(habitInput);
+      closeModal();
+      await render(currentView);
+      toast(habit ? "Habit updated." : "Habit created.");
+    } catch (error) {
+      toast(error.message, true);
+    }
   };
 }
 
@@ -596,6 +825,7 @@ function renderToday(state) {
       ${quickModuleHtml}
       ${dayReportModuleHtml}
     </div>
+    ${renderTodayHabits(state)}
     ${renderCompletionChart(state.tasks)}
   `;
 
@@ -1299,6 +1529,31 @@ function bindCommonActions() {
   $$('[data-go]').forEach((el) => el.onclick = () => render(el.dataset.go));
   $$('[data-create="goal"]').forEach((el) => el.onclick = () => openGoalModal());
   $$('[data-create="idea"]').forEach((el) => el.onclick = () => openIdeaModal());
+  $$("[data-create-habit]").forEach((el) => el.onclick = async () => {
+    try { openHabitModal(await getAppState()); }
+    catch (error) { toast(error.message, true); }
+  });
+  $$("[data-habit-edit]").forEach((el) => el.onclick = async () => {
+    try {
+      const state = await getAppState();
+      const habit = (state.habits ?? []).find((item) => item.id === el.dataset.habitEdit);
+      if (habit) openHabitModal(state, habit);
+    } catch (error) { toast(error.message, true); }
+  });
+  $$("[data-habit-status]").forEach((el) => el.onclick = async () => {
+    try {
+      await setHabitStatus(el.dataset.habitStatus, el.dataset.statusValue);
+      await render(currentView);
+      toast(el.dataset.statusValue === "ARCHIVED" ? "Habit archived; history kept." : `Habit ${el.dataset.statusValue.toLowerCase()}.`);
+    } catch (error) { toast(error.message, true); }
+  });
+  $$("[data-habit-checkin]").forEach((el) => el.onclick = async () => {
+    try {
+      const value = el.dataset.checkinValue === "clear" ? null : el.dataset.checkinValue;
+      await checkInHabit(el.dataset.habitCheckin, value);
+      await render(currentView);
+    } catch (error) { toast(error.message, true); }
+  });
   $$('[data-create-task-for]').forEach((el) => el.onclick = () => openTaskModal(null, el.dataset.createTaskFor));
   $$("[data-goal-action]").forEach(
     (el) => {
@@ -1402,6 +1657,7 @@ document.addEventListener("keydown", (e) => {
   if (key === "t") render("today");
   if (key === "x") render("next");
   if (key === "l") render("later");
+  if (key === "h") render("habits");
   if (key === "j") {
     currentJournalDate = todayKey();
     isJournalHeatmapOpen = false;

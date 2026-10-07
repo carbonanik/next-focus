@@ -2,7 +2,7 @@ import { fetchWithTimeout } from "./http.js";
 import { authRepository } from "./auth.js";
 import { firebaseConfig, isFirebaseConfigured } from "./firebase.config.js";
 
-const VALID_SECTIONS = new Set(["goals", "tasks", "ideas", "plans", "journal"]);
+const VALID_SECTIONS = new Set(["goals", "tasks", "ideas", "plans", "journal", "habits"]);
 
 function documentUrl(uid, section) {
   if (!VALID_SECTIONS.has(section)) throw new Error("Unknown data section.");

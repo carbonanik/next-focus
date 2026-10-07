@@ -58,7 +58,7 @@ This build uses Firebase REST APIs, so there is no Firebase SDK, CDN script, npm
 
 ## Data model in Firestore
 
-Each signed-in user gets five documents:
+Each signed-in user gets six documents:
 
 ```text
 users/{uid}/data/goals
@@ -66,6 +66,7 @@ users/{uid}/data/tasks
 users/{uid}/data/ideas
 users/{uid}/data/plans
 users/{uid}/data/journal
+users/{uid}/data/habits
 ```
 
 Each document stores that section as a versioned JSON payload. This keeps the extension's domain model independent from Firestore-specific data types.
@@ -79,6 +80,13 @@ NextFocus organizes your workflow into 5 distinct mental spaces:
 - 📥 **NEXT** — Things I have prepared to do (curated queue of max 7 executable tasks)
 - ⭐ **TODAY** — The one thing I'm doing now (one main focus task + up to 3 quick tasks)
 - 📖 **JOURNAL** — Things I'm thinking about (frictionless daily reflection)
+- 🔁 **HABITS** — Repeated behaviors with flexible schedules and low-pressure daily check-ins
+
+## Habit tracking
+
+Habits are separate from tasks and do not enter the NEXT or TODAY task queues. Create a do habit or an avoid habit, choose a daily, weekday, selected-day, or weekly-target schedule, and optionally link it to a goal. Do habits can include a normal and minimum version. Check-ins and weekly consistency are retained when a habit is paused or archived.
+
+TODAY shows only active habits scheduled for that day as a small supporting check-in panel; the main task remains the primary focus.
 
 ## Frictionless Journal
 
