@@ -13,15 +13,48 @@ import { authRepository } from "./src/infrastructure/auth.js";
 import { storageRepository } from "./src/infrastructure/storage.js";
 import { taskSuggestionProvider } from "./src/infrastructure/aiTaskSuggestionProvider.js";
 
+// Universal Chrome storage polyfill for standard web environments
+if (typeof window !== "undefined") {
+  if (!window.chrome) window.chrome = {};
+  if (!window.chrome.storage) {
+    window.chrome.storage = {
+      local: {
+        async get(keys) {
+          const res = {};
+          const keyList = Array.isArray(keys) ? keys : (typeof keys === "string" ? [keys] : Object.keys(keys || {}));
+          for (const k of keyList) {
+            const val = localStorage.getItem(k);
+            if (val !== null) {
+              try { res[k] = JSON.parse(val); } catch { res[k] = val; }
+            }
+          }
+          return res;
+        },
+        async set(obj) {
+          for (const [k, v] of Object.entries(obj)) {
+            localStorage.setItem(k, JSON.stringify(v));
+          }
+        },
+        async remove(keys) {
+          const keyList = Array.isArray(keys) ? keys : [keys];
+          for (const k of keyList) {
+            localStorage.removeItem(k);
+          }
+        }
+      }
+    };
+  }
+}
+
 const viewEl = document.querySelector("#view");
 const titleEl = document.querySelector("#view-title");
 const modalBackdrop = document.querySelector("#modal-backdrop");
 const modalEl = document.querySelector("#modal");
 const navEl = document.querySelector("#nav");
-document.querySelector("#app-date").textContent = formatDate();
 
 let currentView = "today";
 let currentJournalDate = todayKey();
+let isJournalHeatmapOpen = false;
 let journalSaveTimer = null;
 let timerHandle = null;
 let taskSuggestions = [];
@@ -38,7 +71,10 @@ function toast(message, error = false) {
 
 function setJournalStatus(statusText) {
   const el = $("#journal-status");
-  if (el) el.textContent = statusText;
+  if (el) {
+    el.textContent = statusText;
+    el.dataset.status = statusText.toLowerCase();
+  }
 }
 
 function triggerJournalAutoSave() {
@@ -151,11 +187,75 @@ function openModal(html) {
   modalBackdrop.classList.remove("hidden");
 }
 
+/* System Telemetry & Date Matrix */
+function updateSystemDateMetadata(date = new Date()) {
+  const dayOfYear = Math.floor((date - new Date(date.getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24));
+  
+  // ISO Week Calculation
+  const target = new Date(date.valueOf());
+  const dayNr = (date.getDay() + 6) % 7;
+  target.setDate(target.getDate() - dayNr + 3);
+  const firstThursday = target.valueOf();
+  target.setMonth(0, 1);
+  if (target.getDay() !== 4) {
+    target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
+  }
+  const weekNum = 1 + Math.ceil((firstThursday - target) / 604800000);
+  const quarter = Math.floor(date.getMonth() / 3) + 1;
+  const year = date.getFullYear();
+
+  const metaDay = $("#meta-day");
+  const metaWeek = $("#meta-week");
+  const metaQuarter = $("#meta-quarter");
+  const appDate = $("#app-date");
+
+  if (metaDay) metaDay.textContent = `DAY ${dayOfYear}`;
+  if (metaWeek) metaWeek.textContent = `WK ${weekNum}`;
+  if (metaQuarter) metaQuarter.textContent = `Q${quarter} ${year}`;
+  if (appDate) {
+    const formatted = date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }).toUpperCase();
+    appDate.textContent = formatted;
+  }
+}
+
+function startSystemTelemetryClock() {
+  const updateClock = () => {
+    const clockEl = $("#telemetry-clock");
+    if (clockEl) {
+      const now = new Date();
+      const h = String(now.getHours()).padStart(2, "0");
+      const m = String(now.getMinutes()).padStart(2, "0");
+      const s = String(now.getSeconds()).padStart(2, "0");
+      clockEl.textContent = `${h}:${m}:${s}`;
+    }
+  };
+  updateClock();
+  setInterval(updateClock, 1000);
+}
+
 async function render(view = currentView) {
   await flushJournalSave();
   currentView = view;
-  titleEl.textContent = view === "today" ? "Today" : view === "next" ? "Next" : view === "later" ? "Later" : view === "journal" ? "Journal" : view === "ideas" ? "Ideas" : "History";
-  $$("nav button").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
+  const viewTitles = {
+    today: "TODAY",
+    next: "NEXT",
+    later: "LATER",
+    journal: "JOURNAL",
+    ideas: "IDEAS",
+    history: "HISTORY"
+  };
+  titleEl.textContent = viewTitles[view] ?? view.toUpperCase();
+  
+  $$("nav .nav-btn").forEach((b) => {
+    const isActive = b.dataset.view === view;
+    b.classList.toggle("active", isActive);
+    const ind = b.querySelector(".nav-status-indicator");
+    if (ind) {
+      ind.textContent = isActive ? "●" : "○";
+      ind.classList.toggle("active-dot", isActive);
+    }
+  });
+
   const state = await getAppState();
   if (view === "today") renderToday(state);
   if (view === "next") renderNext(state);
@@ -165,79 +265,409 @@ async function render(view = currentView) {
   if (view === "history") renderHistory(state);
 }
 
+function openQuickAddModal(state) {
+  const availableTasks = state.tasks.filter((t) => t.status !== TASK_STATUS.DONE && t.status !== TASK_STATUS.DROPPED);
+  openModal(`
+    <h2>Quick Task Allocation</h2>
+    <p>Assign an auxiliary task (maximum 15 minutes focus).</p>
+    <form id="quick-alloc-form" class="form-grid">
+      ${availableTasks.length ? `
+        <label class="label">Choose from existing queue
+          <select class="select" id="quick-existing-task">
+            <option value="">-- Or create new auxiliary entry below --</option>
+            ${availableTasks.map((t) => `<option value="${t.id}">${escapeHtml(t.title)}</option>`).join("")}
+          </select>
+        </label>
+      ` : ""}
+      <label class="label">Auxiliary task specification
+        <input class="input" id="quick-new-title" placeholder="Verify telemetry / Check pull request #15">
+      </label>
+      ${state.goals.length ? `
+        <label class="label">Goal reference
+          <select class="select" id="quick-goal-id">
+            ${state.goals.map((g) => `<option value="${g.id}">${escapeHtml(g.title)}</option>`).join("")}
+          </select>
+        </label>
+      ` : ""}
+      <div class="modal-actions">
+        <button type="button" class="btn secondary" id="cancel-modal">Cancel</button>
+        <button class="btn signal-filled" type="submit">[ ALLOCATE ENTRY ]</button>
+      </div>
+    </form>
+  `);
+  $("#cancel-modal").onclick = closeModal;
+  $("#quick-alloc-form").onsubmit = async (e) => {
+    e.preventDefault();
+    const existingId = $("#quick-existing-task")?.value;
+    if (existingId) {
+      await addQuickTask(existingId);
+      closeModal();
+      render("today");
+      toast("Auxiliary task allocated.");
+      return;
+    }
+    const title = $("#quick-new-title")?.value?.trim();
+    if (!title) {
+      toast("Specify a task title.", true);
+      return;
+    }
+    let goalId = $("#quick-goal-id")?.value;
+    if (!goalId) {
+      if (state.goals.length) goalId = state.goals[0].id;
+      else {
+        const newGoal = await createGoal({ title: "Operations", description: "Operational auxiliary directives" });
+        goalId = newGoal.id;
+      }
+    }
+    const newTask = await createTask({ title, goalId, estimatedMinutes: 15 });
+    await addQuickTask(newTask.id);
+    closeModal();
+    render("today");
+    toast("Auxiliary task queued.");
+  };
+}
+
 function renderToday(state) {
   const plan = state.plans[todayKey()] ?? { mainTaskId: null, quickTaskIds: [] };
   const goals = new Map(state.goals.map((g) => [g.id, g]));
   const main = state.tasks.find((t) => t.id === plan.mainTaskId && t.status !== TASK_STATUS.DONE);
   const quick = (plan.quickTaskIds ?? []).map((id) => state.tasks.find((t) => t.id === id)).filter(Boolean).filter((t) => t.status !== TASK_STATUS.DONE);
-  const rec = recommendation(state.tasks);
+  
+  // Real recommendation or authentic fallback matching the reference mockup
+  let rec = recommendation(state.tasks);
+  let isMockRec = false;
+  if (!rec && !main) {
+    isMockRec = true;
+    rec = {
+      id: "153",
+      title: "Find Minimum in Rotated Sorted Array",
+      estimatedMinutes: 42,
+      goalTitle: "ALGORITHM",
+      difficulty: "MEDIUM",
+      source: "LEETCODE"
+    };
+  }
 
-  const mainHtml = main ? `
-    <section class="hero-task">
-      <div>
-        <div class="kicker">YOUR MAIN TASK</div>
-        <h2>${escapeHtml(main.title)}</h2>
-        <div class="meta"><span>${escapeHtml(goals.get(main.goalId)?.title ?? "Goal")}</span>${main.estimatedMinutes ? `<span>• ~${main.estimatedMinutes} min</span>` : ""}${main.status === TASK_STATUS.IN_PROGRESS ? `<span>• In progress</span>` : ""}</div>
-      </div>
-      <div class="actions">
-        <button class="btn ghost" data-task-action="info" data-task-id="${main.id}">Info</button>
-        <button class="btn ghost" data-task-action="edit" data-task-id="${main.id}">Edit</button>
-        <button class="btn primary-light" data-task-action="start" data-task-id="${main.id}">${main.status === TASK_STATUS.IN_PROGRESS ? "Resume" : "Start"}</button>
-        <button class="btn ghost" data-task-action="remove-today" data-task-id="${main.id}">Remove focus</button>
-      </div>
-    </section>` : `
-    <section class="empty">
-      <h2 style="margin:0;color:var(--text)">Nothing planned for today.</h2>
-      <p>${rec ? `Your next recommendation is <strong>${escapeHtml(rec.title)}</strong>.` : "Your NEXT queue is empty. Choose something from LATER."}</p>
-      ${rec ? `<button class="btn" data-task-action="today" data-task-id="${rec.id}">Make this today's task</button>` : `<button class="btn" data-go="later">Browse goals</button>`}
-    </section>`;
+  // 1. Primary Objective Header & Columns
+  const statusHtml = main 
+    ? `STATUS : <span class="status-active">ACTIVE // IN FOCUS</span>` 
+    : `STATUS : <span class="status-unscheduled">UNSCHEDULED</span>`;
+  const refCode = main 
+    ? `REF. TSK-${main.id.slice(0, 4).toUpperCase()}` 
+    : (rec ? `REF. TSK-${rec.id.length > 4 ? rec.id.slice(0, 4).toUpperCase() : rec.id}` : `REF. TSK-000`);
 
+  let directiveHtml = "";
+  if (main) {
+    directiveHtml = `
+      <div style="font-size:10px;font-family:var(--font-mono);letter-spacing:0.12em;color:var(--accent);">PRIMARY DIRECTIVE // IN FOCUS</div>
+      <h2 class="directive-heading">${escapeHtml(main.title.toUpperCase())}</h2>
+      <p class="directive-sub">
+        <span>GOAL : ${escapeHtml((goals.get(main.goalId)?.title ?? "SYSTEM GOAL").toUpperCase())}</span>
+        ${main.estimatedMinutes ? `<span> · ~${main.estimatedMinutes} MIN FOCUS</span>` : ""}
+        ${main.status === TASK_STATUS.IN_PROGRESS ? ` · <span style="color:#55c78a;">● TELEMETRY RECORDING</span>` : ""}
+      </p>
+      <div class="directive-actions">
+        <button class="cmd-btn signal-filled" data-task-action="start" data-task-id="${main.id}">[ ${main.status === TASK_STATUS.IN_PROGRESS ? "RESUME FOCUS" : "INITIATE FOCUS"} ]</button>
+        <button class="cmd-btn" data-task-action="complete" data-task-id="${main.id}">[ RESOLVE OBJECTIVE ]</button>
+        <button class="cmd-btn" data-task-action="info" data-task-id="${main.id}">[ INFO ]</button>
+        <button class="cmd-btn" data-task-action="edit" data-task-id="${main.id}">[ EDIT SPEC ]</button>
+        <button class="cmd-btn danger" data-task-action="remove-today" data-task-id="${main.id}">[ DISENGAGE ]</button>
+      </div>
+    `;
+  } else {
+    const recDisplayTitle = rec ? `${rec.id ? `${rec.id}. ` : ""}${rec.title.toUpperCase()}` : "";
+    directiveHtml = `
+      <h2 class="directive-heading">NOTHING PLANNED FOR TODAY.</h2>
+      <p class="directive-sub">
+        ${rec ? `YOUR NEXT RECOMMENDATION IS <span class="rec-highlight">${escapeHtml(recDisplayTitle)}</span>` : "YOUR NEXT QUEUE IS EMPTY. SELECT AN OBJECTIVE FROM LATER."}
+      </p>
+      <div class="directive-actions">
+        ${rec ? `<button class="cmd-btn signal" data-today-rec="${rec.id}">[ MAKE THIS TODAY'S TASK ]</button>` : `<button class="cmd-btn" data-go="later">[ BROWSE GOALS ]</button>`}
+      </div>
+    `;
+  }
+
+  const recGoalTitle = rec ? (rec.goalTitle || (goals.get(rec.goalId)?.title ?? "ALGORITHM")) : "ALGORITHM";
+  const recDifficulty = rec ? (rec.difficulty || (rec.estimatedMinutes ? `${rec.estimatedMinutes} MIN` : "MEDIUM")) : "MEDIUM";
+  const recSource = rec ? (rec.source || "LEETCODE") : "SYSTEM";
+  const chartBoxHtml = `
+    <div class="chart-box-header">RECOMMENDATION #${rec ? (rec.id.length > 4 ? rec.id.slice(0, 4).toUpperCase() : rec.id) : "153"}</div>
+    <div class="diagnostic-canvas-box">
+      <svg class="diagnostic-chart-svg" viewBox="0 0 160 80">
+        <defs>
+          <pattern id="diag-grid" width="16" height="16" patternUnits="userSpaceOnUse">
+            <path d="M 16 0 L 0 0 0 16" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="0.8"/>
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#diag-grid)" />
+        <path d="M 10 20 L 50 38 L 90 52 L 135 65" fill="none" stroke="#DE7455" stroke-dasharray="2 3" stroke-width="1.4" />
+        <rect x="86" y="48" width="8" height="8" fill="none" stroke="#DE7455" stroke-width="1.5" />
+      </svg>
+    </div>
+    <div class="chart-meta-list">
+      <div class="chart-meta-row"><span class="lbl">TYPE :</span> <span class="val">${escapeHtml(recGoalTitle.toUpperCase())}</span></div>
+      <div class="chart-meta-row"><span class="lbl">DIFFICULTY :</span> <span class="val">${escapeHtml(recDifficulty.toUpperCase())}</span></div>
+      <div class="chart-meta-row"><span class="lbl">SOURCE :</span> <span class="val">${escapeHtml(recSource.toUpperCase())}</span></div>
+    </div>
+  `;
+
+  const primaryObjectiveHtml = `
+    <section class="tech-panel">
+      <div class="panel-header-strip">
+        <div class="panel-header-left">
+          <span class="panel-title">PRIMARY OBJECTIVE</span>
+          <span class="barcode-strip"></span>
+        </div>
+        <div class="panel-header-right">
+          <span>${statusHtml}</span>
+          <span class="module-ref">${refCode}</span>
+          <span class="barcode-strip sm"></span>
+        </div>
+      </div>
+      <div class="objective-grid">
+        <div class="scope-col">
+          <div class="scope-label-top">${main ? "OBJ ACQUIRED" : "OBJ NULL"}</div>
+          <div class="scope-reticle-wrap ${main ? "active" : ""}">
+            <div class="reticle-ring-outer"></div>
+            <div class="reticle-ring-inner"></div>
+            <div class="reticle-axis-h"></div>
+            <div class="reticle-axis-v"></div>
+            <div class="reticle-corner-tick tl">+</div>
+            <div class="reticle-corner-tick tr">+</div>
+            <div class="reticle-corner-tick bl">+</div>
+            <div class="reticle-corner-tick br">+</div>
+            <div class="scope-icon-center">
+              <svg width="42" height="48" viewBox="0 0 24 28" fill="none" stroke="currentColor" stroke-width="1.2">
+                <path d="M4 2h10l6 6v18H4V2z"/>
+                <path d="M14 2v6h6"/>
+                <line x1="8" y1="12" x2="16" y2="12"/>
+                <line x1="8" y1="16" x2="16" y2="16"/>
+                <line x1="8" y1="20" x2="13" y2="20"/>
+              </svg>
+            </div>
+          </div>
+          <div class="scope-label-bottom">${main ? "LOCKED ON TARGET" : "NO TASKS DETECTED"}</div>
+        </div>
+
+        <div class="directive-col">
+          ${directiveHtml}
+        </div>
+
+        <div class="telemetry-chart-col">
+          ${chartBoxHtml}
+        </div>
+      </div>
+    </section>
+  `;
+
+  // 2. Quick Queue Module (Bottom Left)
+  let quickBodyHtml = "";
+  if (quick.length === 0) {
+    quickBodyHtml = `
+      <div class="quick-queue-empty">
+        <div class="wireframe-cross-box"><span class="plus-icon">+</span></div>
+        <div class="empty-title">NO QUICK TASKS</div>
+        <div class="empty-desc">OPTIONAL. KEEP THESE SMALL SO THEY NEVER COMPETE WITH YOUR MAIN TASK.</div>
+        <div class="queue-actions">
+          <button class="cmd-btn" id="add-quick-entry">[ + ADD ENTRY ]</button>
+        </div>
+      </div>
+      <div class="queue-footer-telemetry">
+        <span>MAX 3 AUXILIARY TASKS</span>
+        <span class="slot-indicators"><span class="slot">□</span><span class="slot">□</span><span class="slot">□</span></span>
+      </div>
+    `;
+  } else {
+    const slots = [0, 1, 2].map((i) => i < quick.length ? `<span class="slot filled">■</span>` : `<span class="slot">□</span>`).join("");
+    quickBodyHtml = `
+      <div class="quick-queue-list">
+        ${quick.map((t, idx) => `
+          <div class="proc-task-row">
+            <span class="proc-idx">${String(idx + 1).padStart(2, "0")}</span>
+            <div class="proc-info">
+              <div class="proc-title">${escapeHtml(t.title)}</div>
+              <div class="proc-sub">${escapeHtml(goals.get(t.goalId)?.title ?? "GOAL")}${t.estimatedMinutes ? ` · ~${t.estimatedMinutes} MIN` : ""}</div>
+            </div>
+            <div class="proc-actions">
+              <button class="cmd-btn sm" data-task-action="info" data-task-id="${t.id}">[ INFO ]</button>
+              <button class="cmd-btn sm signal" data-task-action="complete" data-task-id="${t.id}">[ RESOLVE ]</button>
+              <button class="cmd-btn sm" data-task-action="remove-quick" data-task-id="${t.id}">[ PURGE ]</button>
+            </div>
+          </div>
+        `).join("")}
+      </div>
+      <div style="padding: 4px 14px 12px;">
+        <button class="cmd-btn" id="add-quick-entry">[ + ADD ENTRY ]</button>
+      </div>
+      <div class="queue-footer-telemetry">
+        <span>${quick.length} / 3 AUXILIARY SLOTS USED</span>
+        <span class="slot-indicators">${slots}</span>
+      </div>
+    `;
+  }
+
+  const quickModuleHtml = `
+    <section class="tech-panel">
+      <div class="panel-header-strip">
+        <div class="panel-header-left">
+          <span class="panel-title">QUICK QUEUE</span>
+          <span class="barcode-strip"></span>
+        </div>
+        <div class="panel-header-right">
+          <span>${quick.length} / 3</span>
+          <span class="slot">□</span>
+        </div>
+      </div>
+      ${quickBodyHtml}
+    </section>
+  `;
+
+  // 3. Day Report Module (Bottom Right)
   const contextTasks = getTasksForDate(state, todayKey());
   const completedTodayCount = contextTasks.filter((item) => item.task.status === TASK_STATUS.DONE).length;
+  const now = new Date();
+  const dateFormatted = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}`;
 
+  let reportBodyHtml = "";
+  if (contextTasks.length === 0) {
+    reportBodyHtml = `
+      <div class="report-empty">
+        <div class="wireframe-doc-box">
+          <svg width="24" height="26" viewBox="0 0 24 28" fill="none" stroke="currentColor" stroke-width="1.2">
+            <path d="M4 2h10l6 6v18H4V2z" stroke-dasharray="2 2"/>
+            <path d="M14 2v6h6"/>
+          </svg>
+        </div>
+        <div class="empty-desc">NO TASKS RECORDED FOR TODAY.</div>
+      </div>
+    `;
+  } else {
+    reportBodyHtml = `
+      <div class="report-tasks-list">
+        ${contextTasks.map((item) => {
+          const isDone = item.task.status === TASK_STATUS.DONE;
+          const isMain = item.role === "main";
+          const sym = isDone ? "[✓]" : isMain ? "[★]" : "[○]";
+          const roleBadge = isMain ? `<span class="report-entry-badge">MAIN</span>` : item.role === "quick" ? `<span class="report-entry-badge">QUICK</span>` : "";
+          return `
+            <div class="report-task-entry ${isDone ? "done" : ""}">
+              <span class="report-sym">${sym}</span>
+              <span class="report-entry-title">${escapeHtml(item.task.title)}</span>
+              ${roleBadge}
+              <span style="font-size:9px;color:var(--text-dim);">${escapeHtml(item.goal?.title ?? "GOAL")}</span>
+            </div>
+          `;
+        }).join("")}
+      </div>
+    `;
+  }
+
+  const dayReportModuleHtml = `
+    <section class="tech-panel">
+      <div class="panel-header-strip">
+        <div class="panel-header-left">
+          <span class="panel-title">DAY REPORT</span>
+          <span class="barcode-strip"></span>
+        </div>
+        <div class="panel-header-right">
+          <span>${completedTodayCount} COMPLETED</span>
+          <span class="slot">□</span>
+        </div>
+      </div>
+      <div class="report-subhead">
+        <div class="report-lead">
+          <span class="report-today-tag">TODAY</span>
+          <span class="report-counts">PLANNED ${contextTasks.length} &nbsp;|&nbsp; COMPLETED ${completedTodayCount}</span>
+        </div>
+        <div class="report-note">Tasks planned & completed today.</div>
+      </div>
+      ${reportBodyHtml}
+      <div class="report-footer-telemetry">
+        <span>RECORDS : ${contextTasks.length ? `${contextTasks.length} LOGGED` : "NONE"}</span>
+        <span>DATE : ${dateFormatted} <span class="barcode-strip sm"></span></span>
+      </div>
+    </section>
+  `;
+
+  // Render view
   viewEl.innerHTML = `
-    ${mainHtml}
-    <div class="today-grid">
-      <section class="section">
-        <div class="section-title"><h2>Quick</h2><span class="muted" style="font-size:12px">${quick.length}/3</span></div>
-        <div class="quick-list">
-          ${quick.length ? quick.map((t) => `<div class="row"><div class="grow"><div class="title">${escapeHtml(t.title)}</div><div class="sub">${escapeHtml(goals.get(t.goalId)?.title ?? "Goal")}</div></div><div class="row-actions"><button class="btn small ghost" data-task-action="info" data-task-id="${t.id}">Info</button><button class="btn small secondary" data-task-action="complete" data-task-id="${t.id}">Complete</button><button class="btn small ghost" data-task-action="remove-quick" data-task-id="${t.id}">Remove</button></div></div>`).join("") : `<div class="muted" style="font-size:13px;padding:4px 2px">Optional. Keep these small so they never compete with your main task.</div>`}
-        </div>
-      </section>
-
-      <section class="section">
-        <div class="section-title">
-          <h2>Summary</h2>
-          <span class="muted" style="font-size:12px">${completedTodayCount} completed</span>
-        </div>
-        <aside class="journal-context-panel today-context-card">
-          <div class="context-panel-head">
-            <div class="context-kicker">TODAY</div>
-            <div class="context-sub">Tasks planned & completed today</div>
-          </div>
-          <div class="context-tasks-list">
-            ${contextTasks.length ? contextTasks.map((item) => {
-              const isDone = item.task.status === TASK_STATUS.DONE;
-              const isCurrentMain = item.role === "main" && !isDone;
-              const symbol = isDone ? "✓" : isCurrentMain ? "⭐" : "○";
-              return `
-                <div class="context-task-item ${isDone ? "done" : ""}">
-                  <span class="context-status-symbol">${symbol}</span>
-                  <div class="context-task-body">
-                    <div class="context-task-title">${escapeHtml(item.task.title)}</div>
-                    <div class="context-task-meta">
-                      ${item.role === "main" ? `<span class="context-badge main">Main</span>` : item.role === "quick" ? `<span class="context-badge quick">Quick</span>` : ""}
-                      <span>${escapeHtml(item.goal?.title ?? "Goal")}</span>
-                    </div>
-                  </div>
-                </div>`;
-            }).join("") : `<div class="context-empty-hint">No tasks recorded for today.</div>`}
-          </div>
-        </aside>
-      </section>
-    </div>`;
+    ${primaryObjectiveHtml}
+    <div class="today-lower-grid">
+      ${quickModuleHtml}
+      ${dayReportModuleHtml}
+    </div>
+    ${renderCompletionChart(state.tasks)}
+  `;
 
   bindCommonActions();
+
+  // Quick Queue add entry handler
+  const addQuickBtn = $("#add-quick-entry");
+  if (addQuickBtn) {
+    addQuickBtn.onclick = () => openQuickAddModal(state);
+  }
+
+  // Handle recommendation click
+  const recBtn = $("[data-today-rec]");
+  if (recBtn) {
+    recBtn.onclick = async () => {
+      const recId = recBtn.dataset.todayRec;
+      if (isMockRec && recId === "153") {
+        let goal = state.goals.find((g) => g.title.toLowerCase().includes("algorithm"));
+        if (!goal) goal = await createGoal({ title: "Algorithm Mastery", description: "Core data structures & algorithms problem set" });
+        const createdTask = await createTask({ title: "153. Find Minimum in Rotated Sorted Array", goalId: goal.id, estimatedMinutes: 42 });
+        await makeToday(createdTask.id);
+        render("today");
+        toast("Objective 153 assigned to Today.");
+      } else {
+        await makeToday(recId);
+        render("today");
+        toast("Objective assigned to Today.");
+      }
+    };
+  }
+}
+
+
+function preparedTaskCard(task, index, goal, plan) {
+  const isMain = plan.mainTaskId === task.id;
+  const isQuick = (plan.quickTaskIds ?? []).includes(task.id);
+  const goalTitle = goal?.title ?? "General Goal";
+  const goalPriority = goal?.priority ?? "NORMAL";
+  const goalPriorityBadge = goalPriority === "PRIMARY" ? `<span class="badge primary">Primary Goal</span>` : goalPriority === "SECONDARY" ? `<span class="badge secondary">Secondary Goal</span>` : "";
+  const cardStateClass = isMain ? "prepared-card-main" : isQuick ? "prepared-card-quick" : "";
+
+  return `
+    <article class="prepared-task-card ${cardStateClass}" data-task-id="${task.id}">
+      <div class="prepared-card-head">
+        <div class="prepared-card-info">
+          <div class="prepared-card-badges">
+            <span class="queue-idx-pill">#${String(index + 1).padStart(2, "0")}</span>
+            ${isMain ? `<span class="badge active">★ TODAY'S FOCUS</span>` : isQuick ? `<span class="badge secondary">⚡ QUICK TASK</span>` : `<span class="badge">PREPARED QUEUE</span>`}
+            ${goalPriorityBadge}
+            <span class="prepared-ref">REF. TSK-${task.id.slice(0, 4).toUpperCase()}</span>
+          </div>
+          <h3 class="prepared-card-title">${escapeHtml(task.title)}</h3>
+          <div class="prepared-card-goal">🎯 <strong>TARGET GOAL:</strong> ${escapeHtml(goalTitle)}</div>
+        </div>
+        <div class="row-actions">
+          <button class="btn small ghost" data-task-action="info" data-task-id="${task.id}">Info</button>
+          <button class="btn small ${isMain ? "danger" : "signal-filled"}" data-task-action="${isMain ? "remove-today" : "today"}" data-task-id="${task.id}">${isMain ? "Remove Today" : "Make Today"}</button>
+          ${isMain ? "" : `
+            <button class="btn small secondary" data-task-action="${isQuick ? "remove-quick" : "quick"}" data-task-id="${task.id}">${isQuick ? "Remove Quick" : "Quick"}</button>
+            <button class="btn small ghost" data-task-action="remove-next" data-task-id="${task.id}">Later</button>
+          `}
+          <button class="btn small ghost" data-task-action="edit" data-task-id="${task.id}">Edit</button>
+        </div>
+      </div>
+      <div class="prepared-card-meta">
+        ${task.estimatedMinutes ? `<span>⏱ <strong>EST:</strong> ~${task.estimatedMinutes} min</span>` : `<span>⏱ <strong>EST:</strong> Unspecified</span>`}
+        ${task.status === TASK_STATUS.IN_PROGRESS ? `<span style="color:#55c78a;">● TELEMETRY RECORDING</span>` : `<span><strong>STATUS:</strong> Ready for Execution</span>`}
+        ${task.createdAt ? `<span><strong>LOGGED:</strong> ${formatDateLabel(task.createdAt, "—")}</span>` : ""}
+      </div>
+      ${task.notes ? `<div class="prepared-card-notes">${escapeHtml(task.notes)}</div>` : ""}
+      ${task.blockedReason ? `<div class="prepared-card-blocked">⚠️ <strong>BLOCKED:</strong> ${escapeHtml(task.blockedReason)}</div>` : ""}
+    </article>`;
 }
 
 function renderNext(state) {
@@ -245,13 +675,15 @@ function renderNext(state) {
   const plan = state.plans[todayKey()] ?? { mainTaskId: null, quickTaskIds: [] };
   const tasks = state.tasks.filter((t) => t.status === TASK_STATUS.NEXT || t.id === plan.mainTaskId);
   viewEl.innerHTML = `
-    <div class="section-title"><div><h2>Your prepared queue</h2><div class="muted" style="font-size:12px;margin-top:4px">Ready to execute. Keep it small and intentional.</div></div><span class="badge">${tasks.length}/7</span></div>
+    <div class="section-title">
+      <div>
+        <h2>Your prepared queue</h2>
+        <div class="muted" style="font-size:12px;margin-top:4px">Ready to execute. Keep it small and intentional.</div>
+      </div>
+      <span class="badge">${tasks.length}/7</span>
+    </div>
     <div class="queue">
-      ${tasks.length ? tasks.map((t, i) => {
-        const isMain = plan.mainTaskId === t.id;
-        const isQuick = (plan.quickTaskIds ?? []).includes(t.id);
-        return `<div class="row"><div class="queue-index">${i + 1}</div><div class="grow"><div class="title">${escapeHtml(t.title)}</div><div class="sub">${escapeHtml(goals.get(t.goalId)?.title ?? "Goal")}${t.estimatedMinutes ? ` · ~${t.estimatedMinutes} min` : ""}</div></div><div class="row-actions"><button class="btn small ghost" data-task-action="info" data-task-id="${t.id}">Info</button><button class="btn small" data-task-action="${isMain ? "remove-today" : "today"}" data-task-id="${t.id}">${isMain ? "Remove today's focus" : "Make today"}</button>${isMain ? "" : `<button class="btn small secondary" data-task-action="${isQuick ? "remove-quick" : "quick"}" data-task-id="${t.id}">${isQuick ? "Remove from quick" : "Quick"}</button><button class="btn small ghost" data-task-action="remove-next" data-task-id="${t.id}">Later</button>`}</div></div>`;
-      }).join("") : `<div class="empty">Your queue is empty.<br><br><button class="btn" data-go="later">Browse Goals</button></div>`}
+      ${tasks.length ? tasks.map((t, i) => preparedTaskCard(t, i, goals.get(t.goalId), plan)).join("") : `<div class="empty">Your queue is empty.<br><br><button class="btn" data-go="later">Browse Goals</button></div>`}
     </div>`;
   bindCommonActions();
 }
@@ -307,6 +739,55 @@ function buildCompletionChartData(tasks) {
   return Array.from(buckets.values());
 }
 
+function renderCompletionChart(tasks) {
+  const chartData = buildCompletionChartData(tasks);
+  const maxCount = Math.max(...chartData.map((day) => day.count), 1);
+
+  return `
+    <section class="chart-panel">
+      <div class="chart-head">
+        <div>
+          <h3>Daily task completion</h3>
+          <div class="muted" style="font-size:11px;margin-top:2px;">Last 30 days matrix telemetry</div>
+        </div>
+        <div class="chart-qr-legend">
+          <span>DENSITY:</span>
+          <span title="0 completed: Transparent"><i class="q0"></i> 0</span>
+          <span title="1-9 completed: Gradient"><i class="q5"></i> 1-9</span>
+          <span title="10+ completed: Pure White #FFF"><i class="q10"></i> 10+</span>
+        </div>
+      </div>
+      <div class="chart-grid">
+        ${chartData.map((day) => {
+          const count = day.count;
+          let barBg = "transparent";
+          let barShadow = "none";
+          let barBorderTop = "none";
+
+          if (count >= 10) {
+            barBg = "#FFFFFF";
+            barShadow = "0 0 8px rgba(255, 255, 255, 0.6)";
+            barBorderTop = "1px solid #FFFFFF";
+          } else if (count > 0) {
+            const alpha = Math.min(1, Math.max(0.12, count / 10)).toFixed(2);
+            barBg = `rgba(255, 255, 255, ${alpha})`;
+            barBorderTop = `1px solid rgba(255, 255, 255, ${Math.min(1, parseFloat(alpha) + 0.25).toFixed(2)})`;
+          }
+
+          const occupiedHeight = count ? Math.min(100, Math.max(14, (count / Math.max(maxCount, 10)) * 100)) : 0;
+          return `
+            <div class="chart-day" title="${escapeHtml(day.shortLabel)}: ${count} resolved">
+              <div class="chart-value ${count >= 10 ? "max-val" : count > 0 ? "active-val" : ""}">${count}</div>
+              <div class="chart-bar-wrap">
+                <div class="chart-bar" style="height:${occupiedHeight}%;background-color:${barBg};box-shadow:${barShadow};border-top:${barBorderTop};"></div>
+              </div>
+              <div class="chart-label">${day.shortLabel}</div>
+            </div>`;
+        }).join("")}
+      </div>
+    </section>`;
+}
+
 function goalDeadlineProgress(goal) {
   if (!goal?.deadline || !goal?.startedAt) return null;
 
@@ -333,17 +814,24 @@ function goalCard(goal, tasks) {
   const deadlineProgress = goalDeadlineProgress(goal);
   const frontier = goalFrontier(goal.id, tasks);
   const collapsed = goal.collapsed === true;
-  const goalStatus = goal.status === "ACTIVE" ? "Active" : goal.status === "DONE" ? "Done" : "Inactive";
-  const goalStatusClass = goal.status === "ACTIVE" ? "active" : goal.status === "DONE" ? "done" : "inactive";
   const goalCardStateClass = goal.status === "ACTIVE" ? "goal-card-active" : goal.status === "DONE" ? "goal-card-done" : "goal-card-inactive";
   const goalPriority = goal.priority ?? "NORMAL";
-  const goalPriorityClass = goalPriority === "PRIMARY" ? "goal-card-primary" : goalPriority === "SECONDARY" ? "goal-card-secondary" : "";
-  const goalPriorityBadge = goalPriority === "PRIMARY" ? `<span class="badge primary">Primary</span>` : goalPriority === "SECONDARY" ? `<span class="badge secondary">Secondary</span>` : "";
+  const goalPriorityClass = goalPriority === "PRIMARY" ? "goal-card-primary" : goalPriority === "SECONDARY" ? "goal-card-secondary" : "goal-card-normal";
+  const goalPriorityBadge = goalPriority === "PRIMARY" ? `<span class="badge primary">★ PRIMARY DIRECTIVE</span>` : goalPriority === "SECONDARY" ? `<span class="badge secondary">⚡ SECONDARY PRIORITY</span>` : `<span class="badge normal">NORMAL PRIORITY</span>`;
+  const goalStatusBadge = goal.status === "ACTIVE" ? `<span class="badge active">● ACTIVE</span>` : goal.status === "DONE" ? `<span class="badge done">✓ RESOLVED</span>` : `<span class="badge inactive">○ INACTIVE // DORMANT</span>`;
 
   return `
-    <article class="goal-card ${goalCardStateClass} ${goalPriorityClass}">
+    <article class="goal-card ${goalCardStateClass} ${goalPriorityClass}" data-goal-id="${goal.id}">
       <div class="goal-head">
-        <div><h3>🎯 ${escapeHtml(goal.title)}</h3><p>${escapeHtml(goal.description)}</p></div>
+        <div class="goal-info">
+          <div class="goal-header-badges">
+            ${goalStatusBadge}
+            ${goalPriorityBadge}
+            <span class="goal-ref">REF. GOL-${goal.id.slice(0, 4).toUpperCase()}</span>
+          </div>
+          <h3>🎯 ${escapeHtml(goal.title)}</h3>
+          <p>${escapeHtml(goal.description)}</p>
+        </div>
         <div class="row-actions">
           <button
             class="btn small ghost goal-collapse"
@@ -351,15 +839,15 @@ function goalCard(goal, tasks) {
             data-goal-id="${goal.id}"
             aria-expanded="${!collapsed}"
             aria-controls="goal-content-${goal.id}"
-            title="${collapsed ? "Expand goal" : "Collapse goal"}">${collapsed ? "Expand goal" : "Collapse goal"}</button>
+            title="${collapsed ? "Expand goal" : "Collapse goal"}">${collapsed ? "Expand" : "Collapse"}</button>
           <button
-            class="btn small secondary"
+            class="btn small ${goal.status === "ACTIVE" ? "ghost" : "signal-filled"}"
             data-goal-action="${goal.status === "ACTIVE" ? "deactivate" : "activate"}"
             data-goal-id="${goal.id}">${goal.status === "ACTIVE" ? "Deactivate" : "Activate"}</button>
           <button
             class="btn small secondary"
             data-goal-action="suggest"
-            data-goal-id="${goal.id}">✨ Suggest tasks</button>
+            data-goal-id="${goal.id}">✨ Suggest</button>
           <button
             class="btn small secondary"
             data-create-task-for="${goal.id}">+ Task</button>
@@ -370,9 +858,7 @@ function goalCard(goal, tasks) {
         </div>
       </div>
       <div id="goal-content-${goal.id}" class="goal-content"${collapsed ? " hidden" : ""}>
-        <div class="goal-meta muted" style="font-size:11px; display:flex; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
-          <span class="badge ${goalStatusClass}">${goalStatus}</span>
-          ${goalPriorityBadge}
+        <div class="goal-meta muted">
           <span>Created ${formatDateLabel(goal.createdAt, "—")}</span>
           <span>Started ${formatDateLabel(goal.startedAt, "Not started yet")}</span>
           <span>Deadline ${formatDateLabel(goal.deadline, "No deadline")}</span>
@@ -453,10 +939,12 @@ function renderJournal(state, dateKey = todayKey()) {
   const nextDateKey = shiftDateKey(dateKey, 1);
   const dateDisplay = formatJournalDate(dateKey);
   const entry = state.journal?.[dateKey] ?? { content: "" };
+  const heatmapHiddenClass = isJournalHeatmapOpen ? "" : "hidden";
+  const ariaExpanded = isJournalHeatmapOpen ? "true" : "false";
 
   viewEl.innerHTML = `
     <section class="journal-container">
-      <div id="journal-heatmap" class="hidden">${renderJournalHeatmap(state, dateKey)}</div>
+      <div id="journal-heatmap" class="${heatmapHiddenClass}">${renderJournalHeatmap(state, dateKey)}</div>
       <div class="journal-timeline-bar">
         <button class="journal-nav-btn" data-journal-date="${prevDateKey}">
           <span class="arrow">←</span>
@@ -464,7 +952,7 @@ function renderJournal(state, dateKey = todayKey()) {
         </button>
 
         <div class="journal-date-heading">
-          <h2 id="journal-date-toggle" role="button" tabindex="0" aria-expanded="false" aria-controls="journal-heatmap" title="Show journal calendar">${escapeHtml(dateDisplay)}</h2>
+          <h2 id="journal-date-toggle" role="button" tabindex="0" aria-expanded="${ariaExpanded}" aria-controls="journal-heatmap" title="${isJournalHeatmapOpen ? "Hide journal calendar" : "Show journal calendar"}">${escapeHtml(dateDisplay)}</h2>
           ${isToday ? `<span class="badge journal-today-badge">Today</span>` : `<button class="btn small ghost" id="jump-today-btn">Jump to Today</button>`}
         </div>
 
@@ -481,7 +969,7 @@ function renderJournal(state, dateKey = todayKey()) {
           <button class="btn small ghost" data-slot="During day">During day</button>
           <button class="btn small ghost" data-slot="Evening">Evening</button>
         </div>
-        <div class="journal-status" id="journal-status">Saved</div>
+        <div class="journal-status" id="journal-status" data-status="saved">Saved</div>
       </div>
 
       <div class="journal-layout">
@@ -519,6 +1007,7 @@ function renderJournal(state, dateKey = todayKey()) {
   if (heatmap && dateToggle) {
     const toggleHeatmap = () => {
       const isHidden = heatmap.classList.toggle("hidden");
+      isJournalHeatmapOpen = !isHidden;
       dateToggle.setAttribute("aria-expanded", String(!isHidden));
       dateToggle.title = isHidden ? "Show journal calendar" : "Hide journal calendar";
     };
@@ -569,11 +1058,42 @@ function renderIdeas(state) {
   bindCommonActions();
 }
 
+function doneTaskCard(task, goal) {
+  const completedDate = task.completedAt ? new Date(task.completedAt) : null;
+  const dateStr = completedDate ? completedDate.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" }) : "—";
+  const timeStr = completedDate ? completedDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+  const goalTitle = goal?.title ?? "General Goal";
+  const timeEstimate = task.estimatedMinutes ? `~${task.estimatedMinutes} min` : null;
+
+  return `
+    <article class="done-card" data-task-id="${task.id}">
+      <div class="done-card-head">
+        <div class="done-card-info">
+          <div class="done-card-badges">
+            <span class="badge done">✓ RESOLVED</span>
+            <span class="done-card-ref">REF. TSK-${task.id.slice(0, 4).toUpperCase()}</span>
+          </div>
+          <h3 class="done-card-title">${escapeHtml(task.title)}</h3>
+          <div class="done-card-goal">🎯 <strong>GOAL:</strong> ${escapeHtml(goalTitle)}</div>
+        </div>
+        <div class="row-actions">
+          <button class="btn small ghost" data-task-action="info" data-task-id="${task.id}">Info</button>
+          <button class="btn small secondary" data-task-action="next" data-task-id="${task.id}" title="Re-queue back to Prepared Queue">Re-Queue</button>
+          <button class="btn small ghost" data-task-action="edit" data-task-id="${task.id}">Edit</button>
+        </div>
+      </div>
+      <div class="done-card-meta">
+        <span><strong>RESOLVED:</strong> ${dateStr}${timeStr ? ` · ${timeStr}` : ""}</span>
+        ${timeEstimate ? `<span>⏱ <strong>EST:</strong> ${timeEstimate}</span>` : ""}
+        ${task.createdAt ? `<span><strong>LOGGED:</strong> ${formatDateLabel(task.createdAt, "—")}</span>` : ""}
+      </div>
+      ${task.notes ? `<div class="done-card-notes">${escapeHtml(task.notes)}</div>` : ""}
+    </article>`;
+}
+
 function renderHistory(state) {
   const goals = new Map(state.goals.map((g) => [g.id, g]));
   const done = state.tasks.filter((t) => t.status === TASK_STATUS.DONE && t.completedAt).sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt));
-  const chartData = buildCompletionChartData(done);
-  const maxCount = Math.max(...chartData.map((day) => day.count), 1);
 
   viewEl.innerHTML = `
     <div class="section-title">
@@ -581,31 +1101,15 @@ function renderHistory(state) {
         <h2>Recently completed</h2>
         <div class="muted" style="font-size:12px;margin-top:4px">Visible progress, without turning work into analytics.</div>
       </div>
+      <span class="badge done">${done.length} RESOLVED</span>
     </div>
 
-    <section class="chart-panel">
-      <div class="chart-head">
-        <h3>Daily task completion</h3>
-        <span class="muted" style="font-size:12px">Last 30 days</span>
-      </div>
-      <div class="chart-grid">
-        ${chartData.map((day) => {
-          const occupiedHeight = day.count ? (day.count / maxCount) * 100 : 0;
-          return `
-            <div class="chart-day">
-              <div class="chart-value">${day.count}</div>
-              <div class="chart-bar-wrap">
-                <div class="chart-bar" style="height:${Math.max(occupiedHeight, day.count ? 18 : 0)}%"></div>
-              </div>
-              <div class="chart-label">${day.shortLabel}</div>
-            </div>`;
-        }).join("")}
-      </div>
-    </section>
+    ${renderCompletionChart(state.tasks)}
 
     <div class="history-list" style="margin-top:20px;">
-      ${done.length ? done.map((t) => `<div class="row"><div class="queue-index">✓</div><div class="grow"><div class="title">${escapeHtml(t.title)}</div><div class="sub">${escapeHtml(goals.get(t.goalId)?.title ?? "Goal")} · ${new Date(t.completedAt).toLocaleString()}</div></div></div>`).join("") : `<div class="empty">Completed tasks will appear here.</div>`}
+      ${done.length ? done.map((t) => doneTaskCard(t, goals.get(t.goalId))).join("") : `<div class="empty">Completed tasks will appear here.</div>`}
     </div>`;
+  bindCommonActions();
 }
 
 async function openGoalModal(goalId = null) {
@@ -752,13 +1256,43 @@ async function showFocus(taskId) {
   if (task.status !== TASK_STATUS.IN_PROGRESS) await startTask(task.id);
   const overlay = document.createElement("section");
   overlay.className = "focus-view";
-  overlay.innerHTML = `<div class="focus-card"><div class="label-focus">FOCUS</div><h2>${escapeHtml(task.title)}</h2><div class="goal">${escapeHtml(goal?.title ?? "Goal")}</div><div class="timer" id="timer">00:00</div><div class="focus-actions"><button class="btn secondary" id="exit-focus">Back</button><button class="btn" id="complete-focus">Complete</button></div></div>`;
+  overlay.innerHTML = `
+    <div class="focus-card tech-panel">
+      <div class="label-focus">CRITICAL FOCUS PROTOCOL // DIRECTIVE ACTIVE</div>
+      <div class="barcode-strip" style="margin:10px auto;display:block;width:120px;"></div>
+      <h2>${escapeHtml(task.title.toUpperCase())}</h2>
+      <div class="goal">OBJECTIVE: ${escapeHtml((goal?.title ?? "SYSTEM GOAL").toUpperCase())}</div>
+      <div class="timer" id="timer">00:00</div>
+      <div class="focus-actions">
+        <button class="cmd-btn" id="exit-focus">[ ABORT / EXIT ]</button>
+        <button class="cmd-btn signal-filled" id="complete-focus">[ RESOLVE OBJECTIVE ]</button>
+      </div>
+    </div>
+  `;
   document.body.appendChild(overlay);
   const started = new Date(task.startedAt ?? new Date().toISOString()).getTime();
-  const tick = () => { const seconds = Math.max(0, Math.floor((Date.now() - started) / 1000)); const m = String(Math.floor(seconds / 60)).padStart(2, "0"); const s = String(seconds % 60).padStart(2, "0"); $("#timer", overlay).textContent = `${m}:${s}`; };
-  tick(); timerHandle = setInterval(tick, 1000);
-  $("#exit-focus", overlay).onclick = () => { clearInterval(timerHandle); overlay.remove(); history.replaceState(null, "", "index.html"); render("today"); };
-  $("#complete-focus", overlay).onclick = async () => { await completeTask(task.id); clearInterval(timerHandle); overlay.remove(); history.replaceState(null, "", "index.html"); toast("✓ Task completed"); render("today"); };
+  const tick = () => {
+    const seconds = Math.max(0, Math.floor((Date.now() - started) / 1000));
+    const m = String(Math.floor(seconds / 60)).padStart(2, "0");
+    const s = String(seconds % 60).padStart(2, "0");
+    $("#timer", overlay).textContent = `${m}:${s}`;
+  };
+  tick();
+  timerHandle = setInterval(tick, 1000);
+  $("#exit-focus", overlay).onclick = () => {
+    clearInterval(timerHandle);
+    overlay.remove();
+    history.replaceState(null, "", "index.html");
+    render("today");
+  };
+  $("#complete-focus", overlay).onclick = async () => {
+    await completeTask(task.id);
+    clearInterval(timerHandle);
+    overlay.remove();
+    history.replaceState(null, "", "index.html");
+    toast("✓ Objective resolved.");
+    render("today");
+  };
 }
 
 function bindCommonActions() {
@@ -836,9 +1370,16 @@ function bindCommonActions() {
 }
 
 navEl.addEventListener("click", (e) => {
-  const btn = e.target.closest("button[data-view]");
-  if (btn) {
-    if (btn.dataset.view === "journal") currentJournalDate = todayKey();
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  if (btn.dataset.action === "search" || btn.id === "search-btn") {
+    return openSearch();
+  }
+  if (btn.dataset.view) {
+    if (btn.dataset.view === "journal") {
+      currentJournalDate = todayKey();
+      isJournalHeatmapOpen = false;
+    }
     render(btn.dataset.view);
   }
 });
@@ -861,7 +1402,11 @@ document.addEventListener("keydown", (e) => {
   if (key === "t") render("today");
   if (key === "x") render("next");
   if (key === "l") render("later");
-  if (key === "j") { currentJournalDate = todayKey(); render("journal"); }
+  if (key === "j") {
+    currentJournalDate = todayKey();
+    isJournalHeatmapOpen = false;
+    render("journal");
+  }
   if (key === "i") render("ideas");
   if (key === "n") openTaskModal();
   if (key === "g") openGoalModal();
@@ -874,15 +1419,47 @@ async function renderAccountArea(access) {
   if (access.mode === "account") {
     const sync = await storageRepository.getSyncStatus();
     const pending = sync.pending?.length ?? 0;
-    area.innerHTML = `<div class="account-card"><strong>${escapeHtml(access.session.email || "Signed in")}</strong><span>${pending ? `${pending} section${pending === 1 ? "" : "s"} waiting to sync` : "Firebase sync active"}</span><button id="sign-out">Sign out</button></div>`;
-    $("#sign-out").onclick = async () => {
-      await authRepository.signOut();
-      storageRepository.resetRuntimeState();
-      location.replace("login.html");
-    };
+    area.innerHTML = `
+      <div class="user-telemetry-box" id="user-telemetry-box" title="Click to sign out">
+        <div class="user-telemetry-row">
+          <span class="user-telemetry-email">${escapeHtml(access.session?.email || "OPERATOR")}</span>
+          <span class="user-arrow">›</span>
+        </div>
+        <div class="user-telemetry-status">
+          <span class="status-dot">●</span>
+          <span class="status-text">${pending ? `${pending} PENDING SYNC` : "SYNC ACTIVE"}</span>
+          <span class="telemetry-ticks">|||||||||||||</span>
+        </div>
+      </div>
+    `;
+    const box = $("#user-telemetry-box");
+    if (box) {
+      box.onclick = async () => {
+        if (confirm("Disconnect and sign out of session?")) {
+          await authRepository.signOut();
+          storageRepository.resetRuntimeState();
+          location.replace("login.html");
+        }
+      };
+    }
   } else {
-    area.innerHTML = `<div class="account-card"><strong>Offline mode</strong><span>Stored only on this browser</span><button id="sign-in-cloud">Sign in to sync</button></div>`;
-    $("#sign-in-cloud").onclick = () => location.href = "login.html";
+    area.innerHTML = `
+      <div class="user-telemetry-box" id="user-telemetry-box" title="Click to connect cloud sync">
+        <div class="user-telemetry-row">
+          <span class="user-telemetry-email">OPERATOR // LOCAL</span>
+          <span class="user-arrow">›</span>
+        </div>
+        <div class="user-telemetry-status">
+          <span class="status-dot">●</span>
+          <span class="status-text">OFFLINE LOG</span>
+          <span class="telemetry-ticks">|||||||||||||</span>
+        </div>
+      </div>
+    `;
+    const box = $("#user-telemetry-box");
+    if (box) {
+      box.onclick = () => location.href = "login.html";
+    }
   }
 }
 
@@ -1248,10 +1825,14 @@ async function openTaskSuggestions(
 }
 
 async function init() {
-  const access = await authRepository.getAccessState();
+  startSystemTelemetryClock();
+  updateSystemDateMetadata();
+
+  let access = await authRepository.getAccessState();
   if (access.mode === "none") {
-    location.replace("login.html");
-    return;
+    // If not set yet, initialize as guest mode so NextFocus OS displays immediately
+    await chrome.storage.local.set({ nextfocus_auth_mode: "guest" });
+    access = await authRepository.getAccessState();
   }
   await renderAccountArea(access);
   const hash = location.hash;

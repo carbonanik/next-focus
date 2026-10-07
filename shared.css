@@ -1,38 +1,394 @@
+@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,400;0,600;0,700;1,400;1,700&family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,400;1,700&display=swap');
+
 :root {
-  color-scheme: light;
-  --bg: #f6f7f2;
-  --surface: #ffffff;
-  --surface-2: #f0f2eb;
-  --text: #182018;
-  --muted: #687168;
-  --border: #dfe4da;
-  --accent: #1f6f4a;
-  --accent-soft: #e4f2e9;
-  --danger: #a13b32;
-  --warning: #8a6417;
-  --shadow: 0 14px 38px rgba(33, 50, 39, .08);
-  --radius: 18px;
+  color-scheme: dark;
+  --bg: #080A09;
+  --surface: #0E1110;
+  --surface-2: #141716;
+  --surface-elevated: #1B1E1C;
+  --text: #E7E4DA;
+  --text-muted: #8F918B;
+  --text-dim: #545852;
+  --border: rgba(255, 255, 255, 0.12);
+  --border-subtle: rgba(255, 255, 255, 0.07);
+  --border-bright: rgba(255, 255, 255, 0.28);
+  --accent: #DE7455;
+  --accent-red: #D86550;
+  --accent-cyan: #83A8A6;
+  --accent-glow: rgba(222, 116, 85, 0.25);
+  --font-mono: 'JetBrains Mono', 'SF Mono', 'Courier New', monospace;
+  --font-display: 'Chakra Petch', 'JetBrains Mono', monospace, sans-serif;
+  --shadow: none;
+  --radius: 0px;
 }
-* { box-sizing: border-box; }
-body { margin: 0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
-button, input, textarea, select { font: inherit; }
-button { cursor: pointer; }
-.btn { border: 0; border-radius: 12px; padding: 10px 14px; background: var(--text); color: white; font-weight: 700; transition: transform .15s ease, opacity .15s ease; }
-.btn:hover { transform: translateY(-1px); }
-.btn.secondary { background: var(--surface-2); color: var(--text); }
-.btn.ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
-.btn.danger { background: #f6e8e6; color: var(--danger); }
-.btn.small { padding: 7px 10px; border-radius: 10px; font-size: 12px; }
-.input, .select, .textarea { width: 100%; border: 1px solid var(--border); border-radius: 12px; padding: 11px 12px; background: #fff; color: var(--text); outline: none; }
-.input:focus, .select:focus, .textarea:focus { border-color: #94b8a1; box-shadow: 0 0 0 3px rgba(31, 111, 74, .08); }
-.label { display: grid; gap: 7px; font-size: 12px; font-weight: 700; color: var(--muted); }
-.badge { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; padding: 5px 9px; font-size: 11px; font-weight: 800; background: var(--surface-2); color: var(--muted); }
-.badge.blocked { background: #fff1e0; color: var(--warning); }
-.badge.primary { background: #e3f2e8; color: var(--accent); }
-.badge.secondary { background: #efeaf9; color: #5d4d8a; }
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
-.muted { color: var(--muted); }
-.empty { border: 1px dashed #cbd3c7; background: rgba(255,255,255,.55); border-radius: 18px; padding: 24px; text-align: center; color: var(--muted); }
-.toast { position: fixed; right: 24px; bottom: 24px; max-width: 360px; padding: 12px 15px; border-radius: 12px; background: #172019; color: #fff; box-shadow: var(--shadow); z-index: 999; animation: toastIn .2s ease; }
-.toast.error { background: #7c2822; }
-@keyframes toastIn { from { transform: translateY(8px); opacity: 0; } }
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-mono);
+  background-color: var(--bg);
+  background-image: url('assets/background.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  color: var(--text);
+  letter-spacing: 0.02em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* Subtle CRT scanline overlay */
+body::before {
+  content: " ";
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+  background-size: 100% 2px, 3px 100%;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.45;
+}
+
+/* Subtle vignette around edges */
+body::after {
+  content: " ";
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  background: radial-gradient(circle at 50% 50%, transparent 60%, rgba(0, 0, 0, 0.6) 100%);
+  pointer-events: none;
+  z-index: 9998;
+}
+
+button,
+input,
+textarea,
+select {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+button {
+  cursor: pointer;
+  border-radius: 0;
+}
+
+/* Procedural Rectangular Command Buttons */
+.btn {
+  border: 1px solid var(--border-bright);
+  border-radius: 0;
+  padding: 8px 14px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn:hover {
+  background: var(--text);
+  color: var(--bg);
+  border-color: var(--text);
+}
+
+.btn.primary,
+.btn.signal {
+  background: var(--accent);
+  color: #080A09;
+  border-color: var(--accent);
+  font-weight: 700;
+}
+
+.btn.primary:hover,
+.btn.signal:hover {
+  background: #f08b6e;
+  color: #080A09;
+  border-color: #f08b6e;
+}
+
+.btn.secondary {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.btn.secondary:hover {
+  background: var(--surface-elevated);
+  border-color: var(--text);
+  color: var(--text);
+}
+
+.btn.ghost {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
+}
+
+.btn.ghost:hover {
+  background: var(--surface-2);
+  color: var(--text);
+  border-color: var(--border-bright);
+}
+
+.btn.danger {
+  background: transparent;
+  color: var(--accent-red);
+  border: 1px solid var(--accent-red);
+}
+
+.btn.danger:hover {
+  background: var(--accent-red);
+  color: #080A09;
+}
+
+.btn.small {
+  padding: 5px 8px;
+  font-size: 10px;
+}
+
+/* Bracketed command button utility */
+.cmd-btn {
+  border: 1px solid var(--border-bright);
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 7px 12px;
+  transition: all 0.15s ease;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cmd-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(222, 116, 85, 0.06);
+}
+
+.cmd-btn.accent,
+.cmd-btn.signal {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.cmd-btn.accent:hover,
+.cmd-btn.signal:hover {
+  background: var(--accent);
+  color: #080A09;
+}
+
+.cmd-btn.signal-filled {
+  background: var(--accent);
+  color: #080A09;
+  border-color: var(--accent);
+  font-weight: 700;
+}
+
+.cmd-btn.signal-filled:hover {
+  background: #f08b6e;
+  border-color: #f08b6e;
+  color: #080A09;
+}
+
+/* Industrial inputs */
+.input,
+.select,
+.textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 0;
+  padding: 9px 12px;
+  background: #0A0D0B;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.input:focus,
+.select:focus,
+.textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.label {
+  display: grid;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+/* Procedural Badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 0;
+  padding: 3px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
+}
+
+.badge.primary {
+  background: rgba(222, 116, 85, 0.12);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.badge.secondary {
+  background: rgba(131, 168, 166, 0.12);
+  color: var(--accent-cyan);
+  border-color: var(--accent-cyan);
+}
+
+.badge.active {
+  background: rgba(85, 199, 138, 0.12);
+  color: #55c78a;
+  border-color: #55c78a;
+}
+
+.badge.inactive {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-dim);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.badge.done {
+  background: rgba(85, 199, 138, 0.15);
+  color: #55c78a;
+  border-color: rgba(85, 199, 138, 0.4);
+}
+
+.badge.normal {
+  background: var(--surface-2);
+  color: var(--text-muted);
+  border-color: var(--border-subtle);
+}
+
+.badge.blocked {
+  background: rgba(216, 101, 80, 0.12);
+  color: var(--accent-red);
+  border-color: var(--accent-red);
+}
+
+/* Industrial documentation panels */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  position: relative;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.empty {
+  border: 1px dashed var(--border);
+  background: rgba(14, 17, 16, 0.5);
+  border-radius: 0;
+  padding: 32px 24px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+/* Toast Notification in Terminal Style */
+.toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  max-width: 420px;
+  padding: 10px 16px;
+  border-radius: 0;
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border-bright);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  z-index: 10000;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.7);
+  animation: toastIn 0.2s ease;
+}
+
+.toast.error {
+  border-color: var(--accent-red);
+  color: var(--accent-red);
+  background: #180d0c;
+}
+
+@keyframes toastIn {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Corner ticks utility for technical boxes */
+.tech-box {
+  position: relative;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.tech-box::before,
+.tech-box::after {
+  content: "+";
+  position: absolute;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  line-height: 1;
+}
+
+.tech-box::before {
+  top: -5px;
+  left: -4px;
+}
+
+.tech-box::after {
+  bottom: -6px;
+  right: -4px;
+}
+
+.hidden {
+  display: none !important;
+}
