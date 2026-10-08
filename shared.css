@@ -20,6 +20,7 @@
   --font-display: 'Chakra Petch', 'JetBrains Mono', monospace, sans-serif;
   --shadow: none;
   --radius: 0px;
+  --background-image: url('assets/background.png');
 }
 
 * {
@@ -30,7 +31,7 @@ body {
   margin: 0;
   font-family: var(--font-mono);
   background-color: var(--bg);
-  background-image: url('assets/background.png');
+  background-image: var(--background-image);
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
