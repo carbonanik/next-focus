@@ -52,6 +52,7 @@ if (typeof window !== "undefined") {
 
 const viewEl = document.querySelector("#view");
 const titleEl = document.querySelector("#view-title");
+const appShellEl = document.querySelector(".app-shell");
 const modalBackdrop = document.querySelector("#modal-backdrop");
 const modalEl = document.querySelector("#modal");
 const navEl = document.querySelector("#nav");
@@ -240,6 +241,7 @@ function startSystemTelemetryClock() {
 async function render(view = currentView) {
   await flushJournalSave();
   currentView = view;
+  appShellEl.classList.toggle("today-view", view === "today");
   const viewTitles = {
     today: "TODAY",
     next: "NEXT",
@@ -256,7 +258,7 @@ async function render(view = currentView) {
     b.classList.toggle("active", isActive);
     const ind = b.querySelector(".nav-status-indicator");
     if (ind) {
-      ind.textContent = isActive ? "●" : "○";
+      ind.textContent = isActive ? "●" : "";
       ind.classList.toggle("active-dot", isActive);
     }
   });
@@ -604,26 +606,28 @@ function renderToday(state) {
   const statusHtml = main
     ? `STATUS : <span class="status-active">ACTIVE // IN FOCUS</span>`
     : `STATUS : <span class="status-unscheduled">UNSCHEDULED</span>`;
-  const refCode = main
-    ? `REF. TSK-${main.id.slice(0, 4).toUpperCase()}`
-    : (rec ? `REF. TSK-${rec.id.length > 4 ? rec.id.slice(0, 4).toUpperCase() : rec.id}` : `REF. TSK-000`);
 
   let directiveHtml = "";
   if (main) {
     directiveHtml = `
-      <div style="font-size:10px;font-family:var(--font-mono);letter-spacing:0.12em;color:var(--accent);">PRIMARY DIRECTIVE // IN FOCUS</div>
       <h2 class="directive-heading">${escapeHtml(main.title.toUpperCase())}</h2>
       <p class="directive-sub">
         <span>GOAL : ${escapeHtml((goals.get(main.goalId)?.title ?? "SYSTEM GOAL").toUpperCase())}</span>
         ${main.estimatedMinutes ? `<span> · ~${main.estimatedMinutes} MIN FOCUS</span>` : ""}
-        ${main.status === TASK_STATUS.IN_PROGRESS ? ` · <span style="color:#55c78a;">● TELEMETRY RECORDING</span>` : ""}
       </p>
       <div class="directive-actions">
-        <button class="cmd-btn signal-filled" data-task-action="start" data-task-id="${main.id}">[ ${main.status === TASK_STATUS.IN_PROGRESS ? "RESUME FOCUS" : "INITIATE FOCUS"} ]</button>
-        <button class="cmd-btn" data-task-action="complete" data-task-id="${main.id}">[ RESOLVE OBJECTIVE ]</button>
-        <button class="cmd-btn" data-task-action="info" data-task-id="${main.id}">[ INFO ]</button>
-        <button class="cmd-btn" data-task-action="edit" data-task-id="${main.id}">[ EDIT SPEC ]</button>
-        <button class="cmd-btn danger" data-task-action="remove-today" data-task-id="${main.id}">[ DISENGAGE ]</button>
+        <button class="cmd-btn signal-filled" data-task-action="start" data-task-id="${main.id}">${main.status === TASK_STATUS.IN_PROGRESS ? "RESUME FOCUS" : "INITIATE FOCUS"}</button>
+        <div class="directive-secondary-actions">
+          <button class="cmd-btn" data-task-action="complete" data-task-id="${main.id}">RESOLVE OBJECTIVE</button>
+          <button class="cmd-btn" data-task-action="info" data-task-id="${main.id}">VIEW DETAILS</button>
+          <details class="action-overflow">
+            <summary aria-label="More objective actions" title="More actions">…</summary>
+            <div class="action-overflow-menu">
+              <button data-task-action="edit" data-task-id="${main.id}">Edit objective</button>
+              <button class="danger-text" data-task-action="remove-today" data-task-id="${main.id}">Disengage from today</button>
+            </div>
+          </details>
+        </div>
       </div>
     `;
   } else {
@@ -639,46 +643,18 @@ function renderToday(state) {
     `;
   }
 
-  const recGoalTitle = rec ? (rec.goalTitle || (goals.get(rec.goalId)?.title ?? "ALGORITHM")) : "ALGORITHM";
-  const recDifficulty = rec ? (rec.difficulty || (rec.estimatedMinutes ? `${rec.estimatedMinutes} MIN` : "MEDIUM")) : "MEDIUM";
-  const recSource = rec ? (rec.source || "LEETCODE") : "SYSTEM";
-  const chartBoxHtml = `
-    <div class="chart-box-header">RECOMMENDATION #${rec ? (rec.id.length > 4 ? rec.id.slice(0, 4).toUpperCase() : rec.id) : "153"}</div>
-    <div class="diagnostic-canvas-box">
-      <svg class="diagnostic-chart-svg" viewBox="0 0 160 80">
-        <defs>
-          <pattern id="diag-grid" width="16" height="16" patternUnits="userSpaceOnUse">
-            <path d="M 16 0 L 0 0 0 16" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="0.8"/>
-          </pattern>
-        </defs>
-        <rect width="100%" height="100%" fill="url(#diag-grid)" />
-        <path d="M 10 20 L 50 38 L 90 52 L 135 65" fill="none" stroke="#DE7455" stroke-dasharray="2 3" stroke-width="1.4" />
-        <rect x="86" y="48" width="8" height="8" fill="none" stroke="#DE7455" stroke-width="1.5" />
-      </svg>
-    </div>
-    <div class="chart-meta-list">
-      <div class="chart-meta-row"><span class="lbl">TYPE :</span> <span class="val">${escapeHtml(recGoalTitle.toUpperCase())}</span></div>
-      <div class="chart-meta-row"><span class="lbl">DIFFICULTY :</span> <span class="val">${escapeHtml(recDifficulty.toUpperCase())}</span></div>
-      <div class="chart-meta-row"><span class="lbl">SOURCE :</span> <span class="val">${escapeHtml(recSource.toUpperCase())}</span></div>
-    </div>
-  `;
-
   const primaryObjectiveHtml = `
-    <section class="tech-panel">
+    <section class="tech-panel primary-objective-panel">
       <div class="panel-header-strip">
         <div class="panel-header-left">
           <span class="panel-title">PRIMARY OBJECTIVE</span>
-          <span class="barcode-strip"></span>
         </div>
         <div class="panel-header-right">
           <span>${statusHtml}</span>
-          <span class="module-ref">${refCode}</span>
-          <span class="barcode-strip sm"></span>
         </div>
       </div>
       <div class="objective-grid">
         <div class="scope-col">
-          <div class="scope-label-top">${main ? "OBJ ACQUIRED" : "OBJ NULL"}</div>
           <div class="scope-reticle-wrap ${main ? "active" : ""}">
             <div class="reticle-ring-outer"></div>
             <div class="reticle-ring-inner"></div>
@@ -698,15 +674,11 @@ function renderToday(state) {
               </svg>
             </div>
           </div>
-          <div class="scope-label-bottom">${main ? "LOCKED ON TARGET" : "NO TASKS DETECTED"}</div>
+          <div class="scope-label-bottom">${main ? "LOCKED ON TARGET" : "AWAITING OBJECTIVE"}</div>
         </div>
 
         <div class="directive-col">
           ${directiveHtml}
-        </div>
-
-        <div class="telemetry-chart-col">
-          ${chartBoxHtml}
         </div>
       </div>
     </section>
@@ -717,43 +689,37 @@ function renderToday(state) {
   if (quick.length === 0) {
     quickBodyHtml = `
       <div class="quick-queue-empty">
-        <div class="wireframe-cross-box"><span class="plus-icon">+</span></div>
         <div class="empty-title">NO QUICK TASKS</div>
-        <div class="empty-desc">OPTIONAL. KEEP THESE SMALL SO THEY NEVER COMPETE WITH YOUR MAIN TASK.</div>
         <div class="queue-actions">
-          <button class="cmd-btn" id="add-quick-entry">[ + ADD ENTRY ]</button>
+          <button class="cmd-btn" id="add-quick-entry">+ ADD QUICK TASK</button>
         </div>
-      </div>
-      <div class="queue-footer-telemetry">
-        <span>MAX 3 AUXILIARY TASKS</span>
-        <span class="slot-indicators"><span class="slot">□</span><span class="slot">□</span><span class="slot">□</span></span>
       </div>
     `;
   } else {
-    const slots = [0, 1, 2].map((i) => i < quick.length ? `<span class="slot filled">■</span>` : `<span class="slot">□</span>`).join("");
     quickBodyHtml = `
       <div class="quick-queue-list">
-        ${quick.map((t, idx) => `
+        ${quick.map((t) => `
           <div class="proc-task-row">
-            <span class="proc-idx">${String(idx + 1).padStart(2, "0")}</span>
             <div class="proc-info">
               <div class="proc-title">${escapeHtml(t.title)}</div>
-              <div class="proc-sub">${escapeHtml(goals.get(t.goalId)?.title ?? "GOAL")}${t.estimatedMinutes ? ` · ~${t.estimatedMinutes} MIN` : ""}</div>
+              <div class="proc-sub">${escapeHtml(goals.get(t.goalId)?.title ?? "GOAL")}</div>
             </div>
             <div class="proc-actions">
-              <button class="cmd-btn sm" data-task-action="info" data-task-id="${t.id}">[ INFO ]</button>
-              <button class="cmd-btn sm signal" data-task-action="complete" data-task-id="${t.id}">[ RESOLVE ]</button>
-              <button class="cmd-btn sm" data-task-action="remove-quick" data-task-id="${t.id}">[ PURGE ]</button>
+              <button class="cmd-btn sm signal" data-task-action="complete" data-task-id="${t.id}">RESOLVE</button>
+              <details class="action-overflow">
+                <summary aria-label="More task actions" title="More actions">…</summary>
+                <div class="action-overflow-menu">
+                  <button data-task-action="info" data-task-id="${t.id}">View details</button>
+                  <button data-task-action="edit" data-task-id="${t.id}">Edit task</button>
+                  <button class="danger-text" data-task-action="remove-quick" data-task-id="${t.id}">Remove from quick queue</button>
+                </div>
+              </details>
             </div>
           </div>
         `).join("")}
       </div>
       <div style="padding: 4px 14px 12px;">
-        <button class="cmd-btn" id="add-quick-entry">[ + ADD ENTRY ]</button>
-      </div>
-      <div class="queue-footer-telemetry">
-        <span>${quick.length} / 3 AUXILIARY SLOTS USED</span>
-        <span class="slot-indicators">${slots}</span>
+        <button class="cmd-btn" id="add-quick-entry">+ ADD QUICK TASK</button>
       </div>
     `;
   }
@@ -763,12 +729,8 @@ function renderToday(state) {
       <div class="panel-header-strip">
         <div class="panel-header-left">
           <span class="panel-title">QUICK QUEUE</span>
-          <span class="barcode-strip"></span>
         </div>
-        <div class="panel-header-right">
-          <span>${quick.length} / 3</span>
-          <span class="slot">□</span>
-        </div>
+        <div class="panel-header-right"><span>${quick.length} / 3</span></div>
       </div>
       ${quickBodyHtml}
     </section>
@@ -777,21 +739,10 @@ function renderToday(state) {
   // 3. Day Report Module (Bottom Right)
   const contextTasks = getTasksForDate(state, todayKey());
   const completedTodayCount = contextTasks.filter((item) => item.task.status === TASK_STATUS.DONE).length;
-  const now = new Date();
-  const dateFormatted = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}`;
-
   let reportBodyHtml = "";
   if (contextTasks.length === 0) {
     reportBodyHtml = `
-      <div class="report-empty">
-        <div class="wireframe-doc-box">
-          <svg width="24" height="26" viewBox="0 0 24 28" fill="none" stroke="currentColor" stroke-width="1.2">
-            <path d="M4 2h10l6 6v18H4V2z" stroke-dasharray="2 2"/>
-            <path d="M14 2v6h6"/>
-          </svg>
-        </div>
-        <div class="empty-desc">NO TASKS RECORDED FOR TODAY.</div>
-      </div>
+      <div class="report-empty">No tasks planned for today.</div>
     `;
   } else {
     reportBodyHtml = `
@@ -799,14 +750,13 @@ function renderToday(state) {
         ${contextTasks.map((item) => {
       const isDone = item.task.status === TASK_STATUS.DONE;
       const isMain = item.role === "main";
-      const sym = isDone ? "[✓]" : isMain ? "[★]" : "[○]";
+      const sym = isDone ? "✓" : isMain ? "●" : "○";
       const roleBadge = isMain ? `<span class="report-entry-badge">MAIN</span>` : item.role === "quick" ? `<span class="report-entry-badge">QUICK</span>` : "";
       return `
             <div class="report-task-entry ${isDone ? "done" : ""}">
               <span class="report-sym">${sym}</span>
               <span class="report-entry-title">${escapeHtml(item.task.title)}</span>
               ${roleBadge}
-              <span style="font-size:9px;color:var(--text-dim);">${escapeHtml(item.goal?.title ?? "GOAL")}</span>
             </div>
           `;
     }).join("")}
