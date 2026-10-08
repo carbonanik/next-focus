@@ -536,7 +536,7 @@ nav {
 .objective-grid {
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr) 260px;
-  min-height: 240px;
+  /* min-height: 240px; */
 }
 
 /* Column 1: Scope Reticle */
@@ -2817,7 +2817,7 @@ nav {
 
 .objective-grid {
   grid-template-columns: clamp(170px, 19vw, 224px) minmax(0, 1fr);
-  min-height: 286px;
+  /* min-height: 286px; */
 }
 
 .scope-col {
@@ -3225,7 +3225,7 @@ nav {
 
   .objective-grid {
     grid-template-columns: 170px minmax(0, 1fr);
-    min-height: 260px;
+    /* min-height: 260px; */
   }
 
   .directive-col {
