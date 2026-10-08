@@ -819,25 +819,10 @@ function renderToday(state) {
       <div class="panel-header-strip">
         <div class="panel-header-left">
           <span class="panel-title">DAY REPORT</span>
-          <span class="barcode-strip"></span>
         </div>
-        <div class="panel-header-right">
-          <span>${completedTodayCount} COMPLETED</span>
-          <span class="slot">□</span>
-        </div>
-      </div>
-      <div class="report-subhead">
-        <div class="report-lead">
-          <span class="report-today-tag">TODAY</span>
-          <span class="report-counts">PLANNED ${contextTasks.length} &nbsp;|&nbsp; COMPLETED ${completedTodayCount}</span>
-        </div>
-        <div class="report-note">Tasks planned & completed today.</div>
+        <div class="panel-header-right"><span>${completedTodayCount} / ${contextTasks.length} COMPLETED</span></div>
       </div>
       ${reportBodyHtml}
-      <div class="report-footer-telemetry">
-        <span>RECORDS : ${contextTasks.length ? `${contextTasks.length} LOGGED` : "NONE"}</span>
-        <span>DATE : ${dateFormatted} <span class="barcode-strip sm"></span></span>
-      </div>
     </section>
   `;
 
