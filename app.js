@@ -1304,7 +1304,7 @@ function doneTaskCard(task, goal) {
             <span class="done-card-ref">REF. TSK-${task.id.slice(0, 4).toUpperCase()}</span>
           </div>
           <h3 class="done-card-title">${escapeHtml(task.title)}</h3>
-          <div class="done-card-goal">🎯 <strong>GOAL:</strong> ${escapeHtml(goalTitle)}</div>
+          <div class="done-card-goal">◎ <strong>GOAL:</strong> ${escapeHtml(goalTitle)}</div>
         </div>
         <div class="row-actions">
           <button class="btn small ghost" data-task-action="info" data-task-id="${task.id}">Info</button>
@@ -1458,7 +1458,7 @@ async function openSearch() {
     if (!q) return results.innerHTML = "";
     const goals = state.goals.filter((g) => `${g.title} ${g.description}`.toLowerCase().includes(q)).slice(0, 6);
     const tasks = state.tasks.filter((t) => `${t.title} ${t.notes}`.toLowerCase().includes(q)).slice(0, 8);
-    results.innerHTML = [...goals.map((g) => `<div class="search-hit"><strong>🎯 ${escapeHtml(g.title)}</strong><div class="sub">Goal</div></div>`), ...tasks.map((t) => `<div class="search-hit"><strong>${escapeHtml(t.title)}</strong><div class="sub">Task</div></div>`)].join("") || `<div class="muted">No results.</div>`;
+    results.innerHTML = [...goals.map((g) => `<div class="search-hit"><strong>◎ ${escapeHtml(g.title)}</strong><div class="sub">Goal</div></div>`), ...tasks.map((t) => `<div class="search-hit"><strong>${escapeHtml(t.title)}</strong><div class="sub">Task</div></div>`)].join("") || `<div class="muted">No results.</div>`;
   };
   input.focus();
 }
