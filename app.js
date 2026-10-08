@@ -371,17 +371,41 @@ function renderTodayHabits(state) {
   return `
     <section class="tech-panel">
       <div class="panel-header-strip">
-        <div class="panel-header-left"><span class="panel-title">HABITS</span><span class="barcode-strip"></span></div>
-        <div class="panel-header-right"><span>${checked} / ${due.length} CHECKED IN</span><span class="slot">↻</span></div>
+        <div class="panel-header-left"><span class="panel-title">HABITS</span></div>
+        <div class="panel-header-right"><span>${checked} / ${due.length} CHECKED IN</span></div>
       </div>
       ${due.length ? `
         <div class="today-habit-list">
-          ${due.map((habit) => `
-            <div class="today-habit-row">
-              <div class="today-habit-name">${escapeHtml(habit.name)}<span>${escapeHtml(habit.type === "AVOID" ? "AVOID" : habit.normal || "REPEAT")}</span></div>
-              ${habitCheckinActions(habit, true)}
-            </div>
-          `).join("")}
+          ${due.map((habit) => {
+            const dates = getHabitWeekDates();
+            const summary = getHabitWeeklySummary(habit);
+            const detail = habit.type === "AVOID"
+              ? "Avoid habit"
+              : habit.minimum ? `Minimum · ${habit.minimum}` : habitFrequencyLabel(habit);
+            const log = habit.logs?.[todayKey()];
+            const checkedIn = habit.type === "AVOID" ? log === "kept" : log === "done" || log === "minimum";
+            return `
+              <details class="today-habit-row">
+                <summary class="today-habit-summary">
+                  <span class="habit-state-dot ${checkedIn ? "checked" : ""} ${log === "broken" ? "broken" : ""}"></span>
+                  <span class="today-habit-name">${escapeHtml(habit.name)}<span>${escapeHtml(detail)}</span></span>
+                  <span class="habit-streak" aria-label="${summary.completed} of ${summary.target} this week">
+                    ${dates.map((date) => {
+                      const log = habit.logs?.[date];
+                      const success = habit.type === "AVOID" ? log === "kept" : log === "done" || log === "minimum";
+                      return `<span class="${success ? "complete" : log === "broken" ? "broken" : ""}" title="${escapeHtml(date)}"></span>`;
+                    }).join("")}
+                  </span>
+                  <span class="habit-streak-label">${summary.completed}/${summary.target} wk</span>
+                  <span class="habit-chevron" aria-hidden="true">›</span>
+                </summary>
+                <div class="today-habit-details">
+                  ${habitCheckinActions(habit, true)}
+                  <button class="btn small ghost" data-go="habits">Habit details</button>
+                </div>
+              </details>
+            `;
+          }).join("")}
         </div>
       ` : `<div class="today-habits-empty">${activeHabits.length
         ? "No habits scheduled today. Keep the space clear."
@@ -390,7 +414,6 @@ function renderTodayHabits(state) {
           ? `<button class="btn small ghost" data-go="habits">View habits</button>`
           : `<button class="btn small secondary" data-create-habit>+ Create habit</button>`}
       </div>`}
-      ${due.length ? `<div class="today-habits-footer"><button class="btn small ghost" data-go="habits">View all habits</button></div>` : ""}
     </section>
   `;
 }
