@@ -826,7 +826,7 @@ function renderToday(state) {
       ${dayReportModuleHtml}
     </div>
     ${renderTodayHabits(state)}
-    ${renderCompletionChart(state.tasks)}
+    ${renderCompletionChart(state.tasks, true)}
   `;
 
   bindCommonActions();
@@ -969,12 +969,12 @@ function buildCompletionChartData(tasks) {
   return Array.from(buckets.values());
 }
 
-function renderCompletionChart(tasks) {
+function renderCompletionChart(tasks, compact = false) {
   const chartData = buildCompletionChartData(tasks);
   const maxCount = Math.max(...chartData.map((day) => day.count), 1);
-
-  return `
-    <section class="chart-panel">
+  const chartHeader = compact
+    ? `<div class="chart-head"><h3>Daily task completion <span>— LAST 30 DAYS</span></h3></div>`
+    : `
       <div class="chart-head">
         <div>
           <h3>Daily task completion</h3>
@@ -987,25 +987,42 @@ function renderCompletionChart(tasks) {
           <span title="10+ completed: Pure White #FFF"><i class="q10"></i> 10+</span>
         </div>
       </div>
+    `;
+
+  return `
+    <section class="chart-panel ${compact ? "today-completion-chart" : ""}">
+      ${chartHeader}
       <div class="chart-grid">
-        ${chartData.map((day) => {
-    const count = day.count;
-    let barBg = "transparent";
-    let barShadow = "none";
-    let barBorderTop = "none";
+        ${chartData.map((day, index) => {
+          const count = day.count;
+          if (compact) {
+            const alpha = count ? Math.min(1, Math.max(0.22, count / maxCount)).toFixed(2) : "0.05";
+            const occupiedHeight = count ? Math.min(100, Math.max(12, (count / maxCount) * 100)) : 3;
+            const showLabel = index === 0 || index === chartData.length - 1 || index % 7 === 0;
+            return `
+              <div class="chart-day" title="${escapeHtml(day.shortLabel)}: ${count} resolved">
+                <div class="chart-bar-wrap">
+                  <div class="chart-bar ${count ? "has-activity" : ""}" style="height:${occupiedHeight}%;opacity:${alpha};"></div>
+                </div>
+                <div class="chart-label">${showLabel ? day.date.toLocaleDateString([], { month: "short", day: "numeric" }) : ""}</div>
+              </div>`;
+          }
 
-    if (count >= 10) {
-      barBg = "#FFFFFF";
-      barShadow = "0 0 8px rgba(255, 255, 255, 0.6)";
-      barBorderTop = "1px solid #FFFFFF";
-    } else if (count > 0) {
-      const alpha = Math.min(1, Math.max(0.12, count / 10)).toFixed(2);
-      barBg = `rgba(255, 255, 255, ${alpha})`;
-      barBorderTop = `1px solid rgba(255, 255, 255, ${Math.min(1, parseFloat(alpha) + 0.25).toFixed(2)})`;
-    }
+          let barBg = "transparent";
+          let barShadow = "none";
+          let barBorderTop = "none";
+          if (count >= 10) {
+            barBg = "#FFFFFF";
+            barShadow = "0 0 8px rgba(255, 255, 255, 0.6)";
+            barBorderTop = "1px solid #FFFFFF";
+          } else if (count > 0) {
+            const alpha = Math.min(1, Math.max(0.12, count / 10)).toFixed(2);
+            barBg = `rgba(255, 255, 255, ${alpha})`;
+            barBorderTop = `1px solid rgba(255, 255, 255, ${Math.min(1, parseFloat(alpha) + 0.25).toFixed(2)})`;
+          }
 
-    const occupiedHeight = count ? Math.min(100, Math.max(14, (count / Math.max(maxCount, 10)) * 100)) : 0;
-    return `
+          const occupiedHeight = count ? Math.min(100, Math.max(14, (count / Math.max(maxCount, 10)) * 100)) : 0;
+          return `
             <div class="chart-day" title="${escapeHtml(day.shortLabel)}: ${count} resolved">
               <div class="chart-value ${count >= 10 ? "max-val" : count > 0 ? "active-val" : ""}">${count}</div>
               <div class="chart-bar-wrap">
@@ -1013,10 +1030,11 @@ function renderCompletionChart(tasks) {
               </div>
               <div class="chart-label">${day.shortLabel}</div>
             </div>`;
-  }).join("")}
+        }).join("")}
       </div>
     </section>`;
 }
+
 
 function goalDeadlineProgress(goal) {
   if (!goal?.deadline || !goal?.startedAt) return null;
