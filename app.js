@@ -56,6 +56,8 @@ const appShellEl = document.querySelector(".app-shell");
 const modalBackdrop = document.querySelector("#modal-backdrop");
 const modalEl = document.querySelector("#modal");
 const navEl = document.querySelector("#nav");
+const mobileMenuToggle = document.querySelector("#mobile-menu-toggle");
+const mobileMenuBackdrop = document.querySelector("#mobile-menu-backdrop");
 
 let currentView = "today";
 let currentJournalDate = todayKey();
@@ -72,6 +74,12 @@ function toast(message, error = false) {
   const root = $("#toast-root");
   root.innerHTML = `<div class="toast ${error ? "error" : ""}">${escapeHtml(message)}</div>`;
   setTimeout(() => { root.innerHTML = ""; }, 2600);
+}
+
+function setMobileMenuOpen(isOpen) {
+  appShellEl.classList.toggle("mobile-menu-open", isOpen);
+  mobileMenuToggle.setAttribute("aria-expanded", String(isOpen));
+  mobileMenuToggle.setAttribute("aria-label", isOpen ? "Close navigation menu" : "Open navigation menu");
 }
 
 function setJournalStatus(statusText) {
@@ -1603,6 +1611,7 @@ function bindCommonActions() {
 navEl.addEventListener("click", (e) => {
   const btn = e.target.closest("button");
   if (!btn) return;
+  setMobileMenuOpen(false);
   if (btn.dataset.action === "search" || btn.id === "search-btn") {
     return openSearch();
   }
@@ -1614,6 +1623,10 @@ navEl.addEventListener("click", (e) => {
     render(btn.dataset.view);
   }
 });
+mobileMenuToggle.addEventListener("click", () => {
+  setMobileMenuOpen(!appShellEl.classList.contains("mobile-menu-open"));
+});
+mobileMenuBackdrop.addEventListener("click", () => setMobileMenuOpen(false));
 $("#new-goal").onclick = () => openGoalModal();
 $("#new-task").onclick = () => openTaskModal();
 $("#history-btn").onclick = () => render("history");
@@ -1626,6 +1639,7 @@ window.addEventListener("beforeunload", () => {
 
 document.addEventListener("keydown", (e) => {
   if (!modalBackdrop.classList.contains("hidden")) { if (e.key === "Escape") closeModal(); return; }
+  if (e.key === "Escape") setMobileMenuOpen(false);
   const tag = document.activeElement?.tagName;
   if (["INPUT", "TEXTAREA", "SELECT"].includes(tag)) return;
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); return openSearch(); }
