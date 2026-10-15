@@ -1,6 +1,30 @@
-# NextFocus — Chrome Extension
+# NextFocus — Web App and Chrome Extension
 
 NextFocus turns goals into executable actions and gives you one thing to focus on today.
+
+## Website deployment (GitHub Pages)
+
+The website is a static site with no build step. The repository root `index.html` forwards visitors to the marketing landing page in `nextfocus-landing/`. Its **Get Started** actions open `app.html`. Sign-in and account creation also return directly to `app.html`.
+
+1. Push the repository to GitHub.
+2. In the repository, open **Settings → Pages**.
+3. Under **Build and deployment**, select **Deploy from a branch**, choose the branch and `/ (root)` folder, then save.
+4. In Firebase Console, add the published GitHub Pages hostname (for example, `username.github.io`) under **Authentication → Settings → Authorized domains**.
+5. Test the landing page, app, offline storage, and Firebase sign-in at the published URL.
+
+The site stores offline data and authentication state in the browser's `localStorage`, scoped to the website origin. The Chrome extension uses `chrome.storage.local`; those stores are separate. Users can access the same account data in both by signing in and syncing through Firebase.
+
+Do not put private API keys in client-side files. AI suggestions remain disabled in this build until a private backend is configured. The Gemini key that was previously in the source should be revoked/rotated in Google AI Studio. Firebase's Web API key is client configuration; restrict data access with Firebase Authentication and Firestore Security Rules.
+
+## Chrome extension
+
+The extension opens `app.html` directly and does not show the marketing landing page. To load it locally:
+
+1. Open `chrome://extensions`.
+2. Enable **Developer mode**.
+3. Click **Load unpacked** and select the repository folder.
+
+For Chrome Web Store distribution, package the extension separately and submit it through the Chrome Web Store developer dashboard.
 
 ## V1.1 — Firebase sync + optional offline mode
 
@@ -145,14 +169,6 @@ src/infrastructure/auth.js
 ```
 
 The UI only consumes the repository methods such as `signIn`, `createAccount`, `signOut`, `skipLogin`, `getAccessState` and `getIdToken`. Replace that implementation when your own auth API is ready.
-
-## Install locally
-
-1. Configure Firebase, or leave it unconfigured if you only want to test offline mode.
-2. Open `chrome://extensions`.
-3. Enable **Developer mode**.
-4. Click **Load unpacked**.
-5. Select the `focused-task-manager-extension` folder.
 
 ## Core workflow
 

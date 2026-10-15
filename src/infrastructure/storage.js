@@ -1,5 +1,6 @@
 import { authRepository, AUTH_MODES } from "./auth.js";
 import { cloudStore } from "./cloudStore.js";
+import { platformStorage } from "./platformStorage.js";
 
 const GUEST_KEYS = {
   goals: "nextfocus_goals",
@@ -50,7 +51,7 @@ class HybridStorageRepository {
     const access = await authRepository.getAccessState();
     if (access.mode === AUTH_MODES.ACCOUNT) await this.#ensureAccountInitialized(access.session.uid);
     const keys = this.#keysFor(access);
-    const data = await chrome.storage.local.get(Object.values(keys));
+    const data = await platformStorage.local.get(Object.values(keys));
     return {
       goals: data[keys.goals] ?? [],
       tasks: data[keys.tasks] ?? [],
@@ -72,7 +73,7 @@ class HybridStorageRepository {
     const session = await authRepository.getSession();
     if (!session) return { mode: "guest", pending: [] };
     const keys = pendingKeys(session.uid);
-    const data = await chrome.storage.local.get(Object.values(keys));
+    const data = await platformStorage.local.get(Object.values(keys));
     return { mode: "account", pending: Object.keys(keys).filter((section) => data[keys[section]] === true) };
   }
 
@@ -91,7 +92,7 @@ class HybridStorageRepository {
     const access = await authRepository.getAccessState();
     if (access.mode === AUTH_MODES.ACCOUNT) await this.#ensureAccountInitialized(access.session.uid);
     const key = this.#keysFor(access)[section];
-    const data = await chrome.storage.local.get(key);
+    const data = await platformStorage.local.get(key);
     return data[key] ?? freshDefault(section);
   }
 
@@ -99,7 +100,7 @@ class HybridStorageRepository {
     const access = await authRepository.getAccessState();
     if (access.mode === AUTH_MODES.ACCOUNT) await this.#ensureAccountInitialized(access.session.uid);
     const key = this.#keysFor(access)[section];
-    await chrome.storage.local.set({ [key]: value });
+    await platformStorage.local.set({ [key]: value });
     if (access.mode === AUTH_MODES.ACCOUNT) {
       // Local-first: persist the pending marker before starting the network request.
       await this.#addPending(access.session.uid, section);
@@ -120,7 +121,7 @@ class HybridStorageRepository {
 
   async #bootstrapAccount(uid, migrateGuest, force) {
     const marker = initializedKey(uid);
-    const existing = await chrome.storage.local.get(marker);
+    const existing = await platformStorage.local.get(marker);
 
     // Normal launches stay instant/offline-first. Pending cloud writes retry in the background.
     if (existing[marker] && !force) {
@@ -139,7 +140,7 @@ class HybridStorageRepository {
     try { cloud = await cloudStore.getAll(uid); } catch (error) {
       if (!existing[marker]) {
         // The account can still work from its UID-scoped local cache while offline.
-        await chrome.storage.local.set({ [marker]: true });
+        await platformStorage.local.set({ [marker]: true });
       }
       return { restored: false, migrated: false, offline: true, error };
     }
@@ -149,7 +150,7 @@ class HybridStorageRepository {
       const writes = {};
       for (const section of Object.keys(DEFAULTS)) writes[userKey(uid, section)] = cloud[section] ?? freshDefault(section);
       writes[marker] = true;
-      await chrome.storage.local.set(writes);
+      await platformStorage.local.set(writes);
       await this.#clearPending(uid);
       return { restored: true, migrated: false };
     }
@@ -157,7 +158,7 @@ class HybridStorageRepository {
     const accountLocal = await this.#readUserState(uid);
     if (hasMeaningfulData(accountLocal)) {
       await this.#uploadAll(uid, accountLocal);
-      await chrome.storage.local.set({ [marker]: true });
+      await platformStorage.local.set({ [marker]: true });
       return { restored: false, migrated: false };
     }
 
@@ -166,18 +167,18 @@ class HybridStorageRepository {
     if (migrateGuest && hasMeaningfulData(guest)) {
       await this.#writeUserState(uid, guest);
       await this.#uploadAll(uid, guest);
-      await chrome.storage.local.set({ [marker]: true });
+      await platformStorage.local.set({ [marker]: true });
       return { restored: false, migrated: true };
     }
 
     await this.#writeUserState(uid, DEFAULTS);
-    await chrome.storage.local.set({ [marker]: true });
+    await platformStorage.local.set({ [marker]: true });
     await this.#clearPending(uid);
     return { restored: false, migrated: false };
   }
 
   async #readGuestState() {
-    const data = await chrome.storage.local.get(Object.values(GUEST_KEYS));
+    const data = await platformStorage.local.get(Object.values(GUEST_KEYS));
     return {
       goals: data[GUEST_KEYS.goals] ?? [],
       tasks: data[GUEST_KEYS.tasks] ?? [],
@@ -190,14 +191,14 @@ class HybridStorageRepository {
 
   async #readUserState(uid) {
     const keys = Object.fromEntries(Object.keys(DEFAULTS).map((section) => [section, userKey(uid, section)]));
-    const data = await chrome.storage.local.get(Object.values(keys));
+    const data = await platformStorage.local.get(Object.values(keys));
     return Object.fromEntries(Object.keys(DEFAULTS).map((section) => [section, data[keys[section]] ?? freshDefault(section)]));
   }
 
   async #writeUserState(uid, state) {
     const writes = {};
     for (const section of Object.keys(DEFAULTS)) writes[userKey(uid, section)] = state[section] ?? freshDefault(section);
-    await chrome.storage.local.set(writes);
+    await platformStorage.local.set(writes);
   }
 
   async #uploadAll(uid, state) {
@@ -222,7 +223,7 @@ class HybridStorageRepository {
 
   async #flushPending(uid) {
     const keys = pendingKeys(uid);
-    const data = await chrome.storage.local.get(Object.values(keys));
+    const data = await platformStorage.local.get(Object.values(keys));
     const pending = Object.keys(keys).filter((section) => data[keys[section]] === true);
     if (!pending.length) return;
     const state = await this.#readUserState(uid);
@@ -235,15 +236,15 @@ class HybridStorageRepository {
   }
 
   async #addPending(uid, section) {
-    await chrome.storage.local.set({ [pendingSectionKey(uid, section)]: true });
+    await platformStorage.local.set({ [pendingSectionKey(uid, section)]: true });
   }
 
   async #removePending(uid, section) {
-    await chrome.storage.local.remove(pendingSectionKey(uid, section));
+    await platformStorage.local.remove(pendingSectionKey(uid, section));
   }
 
   async #clearPending(uid) {
-    await chrome.storage.local.remove(Object.values(pendingKeys(uid)));
+    await platformStorage.local.remove(Object.values(pendingKeys(uid)));
   }
 }
 

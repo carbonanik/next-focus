@@ -13,7 +13,7 @@ let mode = "signin";
 if (!authRepository.isConfigured()) warning.classList.remove("hidden");
 
 const existing = await authRepository.getAccessState();
-if (existing.mode === "account") location.replace("index.html");
+if (existing.mode === "account") location.replace("app.html");
 
 function showError(message) {
   errorEl.textContent = message;
@@ -43,7 +43,7 @@ form.addEventListener("submit", async (event) => {
     if (mode === "signup") await authRepository.createAccount(data.email, data.password);
     else await authRepository.signIn(data.email, data.password);
     await storageRepository.initializeAccountData({ migrateGuest: true });
-    location.replace("index.html");
+    location.replace("app.html");
   } catch (error) {
     showError(error.message);
     submitEl.disabled = false;
@@ -54,5 +54,5 @@ form.addEventListener("submit", async (event) => {
 document.querySelector("#skip-login").addEventListener("click", async () => {
   await authRepository.skipLogin();
   storageRepository.resetRuntimeState();
-  location.replace("index.html");
+  location.replace("app.html");
 });

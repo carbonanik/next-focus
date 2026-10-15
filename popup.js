@@ -6,7 +6,7 @@ import { storageRepository } from "./src/infrastructure/storage.js";
 
 const shell = document.querySelector(".popup-shell");
 
-function openFullApp(path = "index.html") {
+function openFullApp(path = "app.html") {
   chrome.tabs.create({ url: chrome.runtime.getURL(path) });
 }
 
@@ -37,9 +37,9 @@ async function render() {
   const countEl = document.querySelector("#next-count");
   dateEl.textContent = formatDate();
 
-  document.querySelector("#open-journal").onclick = () => openFullApp("index.html#journal");
+  document.querySelector("#open-journal").onclick = () => openFullApp("app.html#journal");
   document.querySelector("#open-app").onclick = () => openFullApp();
-  document.querySelector("#quick-capture").onclick = () => openFullApp("index.html#new-task");
+  document.querySelector("#quick-capture").onclick = () => openFullApp("app.html#new-task");
 
   const status = document.createElement("div");
   status.className = "popup-mode";
@@ -62,7 +62,7 @@ async function render() {
       </div>`;
     document.querySelector("#start-main").onclick = async () => {
       if (main.status !== TASK_STATUS.IN_PROGRESS) await startTask(main.id);
-      openFullApp(`index.html#focus:${main.id}`);
+      openFullApp(`app.html#focus:${main.id}`);
     };
   } else {
     const rec = recommendation(state.tasks);

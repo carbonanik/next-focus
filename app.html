@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>NextFocus OS</title>
+  <link rel="stylesheet" href="shared.css" />
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <button class="mobile-menu-backdrop" id="mobile-menu-backdrop" aria-label="Close navigation menu" tabindex="-1"></button>
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-main">
+          <div class="brand-mark">N</div>
+          <div class="brand-text">
+            <strong>NextFocus</strong>
+            <span class="brand-sub">GOAL → ACTION</span>
+          </div>
+        </div>
+      </div>
+
+      <nav id="nav">
+        <div class="nav-section">
+          <button data-view="today" class="nav-btn active">
+          <span class="nav-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="0"/><path d="M7 8h10M7 12h10M7 16h6"/></svg></span>
+          <span class="nav-label"><span class="nav-num">01</span> TODAY</span>
+          <span class="nav-status-indicator active-dot">●</span>
+          </button>
+          <button data-view="next" class="nav-btn">
+          <span class="nav-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></span>
+          <span class="nav-label"><span class="nav-num">02</span> NEXT</span>
+          <span class="nav-status-indicator">○</span>
+          </button>
+          <button data-view="later" class="nav-btn">
+          <span class="nav-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
+          <span class="nav-label"><span class="nav-num">03</span> LATER</span>
+          <span class="nav-status-indicator">○</span>
+          </button>
+        </div>
+        <div class="nav-section">
+          <button data-view="habits" class="nav-btn">
+          <span class="nav-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 12l3 3 7-7"/><circle cx="12" cy="12" r="10"/></svg></span>
+          <span class="nav-label"><span class="nav-num">04</span> HABITS</span>
+          <span class="nav-status-indicator">○</span>
+          </button>
+          <button data-view="journal" class="nav-btn">
+          <span class="nav-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span>
+          <span class="nav-label"><span class="nav-num">05</span> JOURNAL</span>
+          <span class="nav-status-indicator">○</span>
+          </button>
+          <button data-view="ideas" class="nav-btn">
+          <span class="nav-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5.76.76 1.23 1.52 1.41 2.5"/></svg></span>
+          <span class="nav-label"><span class="nav-num">06</span> IDEAS</span>
+          <span class="nav-status-indicator">○</span>
+          </button>
+        </div>
+        <div class="nav-section">
+          <button data-view="history" class="nav-btn" id="history-btn">
+          <span class="nav-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h7"/><path d="M3 10h18"/><path d="M10 3v18"/><circle cx="17.5" cy="17.5" r="3.5"/></svg></span>
+          <span class="nav-label"><span class="nav-num">07</span> HISTORY</span>
+          <span class="nav-status-indicator">○</span>
+          </button>
+          <button data-action="search" class="nav-btn" id="search-btn">
+          <span class="nav-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+          <span class="nav-label"><span class="nav-num">08</span> SEARCH</span>
+          <span class="nav-status-indicator">○</span>
+          </button>
+        </div>
+      </nav>
+
+      <div class="sidebar-bottom">
+        <div id="account-area">
+          <div class="user-telemetry-box">
+            <div class="user-telemetry-row">
+              <span class="user-telemetry-email">OPERATOR</span>
+              <span class="user-arrow">›</span>
+            </div>
+            <div class="user-telemetry-status">
+              <span class="status-dot">●</span>
+              <span class="status-text">OFFLINE LOG</span>
+              <span class="telemetry-ticks">|||||||||||||</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="system-footer-card">
+          <div class="sys-title">NEXTFOCUS OS</div>
+          <div class="sys-sub">PERSONAL PRODUCTIVITY SYSTEM</div>
+          <div class="sys-meta">
+            <span>BUILD 27.10.07</span>
+            <span>© 2026</span>
+          </div>
+          <div class="sys-barcode">
+            <div class="barcode-graphic"></div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="content">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="mobile-menu-toggle" id="mobile-menu-toggle" aria-label="Open navigation menu" aria-expanded="false" aria-controls="nav">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+          </button>
+          <div class="topbar-date" id="app-date">WEDNESDAY, OCTOBER 7</div>
+        </div>
+        <div class="topbar-center">
+          <span class="telemetry-readout">LOCAL <span id="telemetry-clock">14:27:18</span></span>
+          <span class="telemetry-user">USR.01 · SYS. OK</span>
+          <span class="focus-mode-badge">FOCUS MODE : NORMAL <span class="indicator-sq">■</span></span>
+        </div>
+        <div class="topbar-right">
+          <div class="top-actions">
+            <button class="cmd-btn" id="new-goal">+ GOAL</button>
+            <button class="cmd-btn signal-filled" id="new-task">+ TASK</button>
+          </div>
+        </div>
+      </header>
+
+      <div class="view-header-row">
+        <h1 id="view-title">TODAY</h1>
+      </div>
+
+      <div id="view"></div>
+    </main>
+  </div>
+
+  <div class="modal-backdrop hidden" id="modal-backdrop">
+    <section class="modal" id="modal"></section>
+  </div>
+  <div id="toast-root"></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

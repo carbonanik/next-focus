@@ -15,40 +15,8 @@ import {
 } from "./src/shared/utils.js";
 import { authRepository } from "./src/infrastructure/auth.js";
 import { storageRepository } from "./src/infrastructure/storage.js";
+import { platformStorage } from "./src/infrastructure/platformStorage.js";
 import { taskSuggestionProvider } from "./src/infrastructure/aiTaskSuggestionProvider.js";
-
-// Universal Chrome storage polyfill for standard web environments
-if (typeof window !== "undefined") {
-  if (!window.chrome) window.chrome = {};
-  if (!window.chrome.storage) {
-    window.chrome.storage = {
-      local: {
-        async get(keys) {
-          const res = {};
-          const keyList = Array.isArray(keys) ? keys : (typeof keys === "string" ? [keys] : Object.keys(keys || {}));
-          for (const k of keyList) {
-            const val = localStorage.getItem(k);
-            if (val !== null) {
-              try { res[k] = JSON.parse(val); } catch { res[k] = val; }
-            }
-          }
-          return res;
-        },
-        async set(obj) {
-          for (const [k, v] of Object.entries(obj)) {
-            localStorage.setItem(k, JSON.stringify(v));
-          }
-        },
-        async remove(keys) {
-          const keyList = Array.isArray(keys) ? keys : [keys];
-          for (const k of keyList) {
-            localStorage.removeItem(k);
-          }
-        }
-      }
-    };
-  }
-}
 
 const viewEl = document.querySelector("#view");
 const titleEl = document.querySelector("#view-title");
@@ -1496,14 +1464,14 @@ async function showFocus(taskId) {
   $("#exit-focus", overlay).onclick = () => {
     clearInterval(timerHandle);
     overlay.remove();
-    history.replaceState(null, "", "index.html");
+    history.replaceState(null, "", "app.html");
     render("today");
   };
   $("#complete-focus", overlay).onclick = async () => {
     await completeTask(task.id);
     clearInterval(timerHandle);
     overlay.remove();
-    history.replaceState(null, "", "index.html");
+    history.replaceState(null, "", "app.html");
     toast("✓ Objective resolved.");
     render("today");
   };
@@ -2077,7 +2045,7 @@ async function init() {
   let access = await authRepository.getAccessState();
   if (access.mode === "none") {
     // If not set yet, initialize as guest mode so NextFocus OS displays immediately
-    await chrome.storage.local.set({ nextfocus_auth_mode: "guest" });
+    await platformStorage.local.set({ nextfocus_auth_mode: "guest" });
     access = await authRepository.getAccessState();
   }
   await renderAccountArea(access);

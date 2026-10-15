@@ -83,7 +83,7 @@ async function geminiSuggestTasks({
 }) {
   if (!isAiConfigured()) {
     throw new Error(
-      "AI is not configured. Add your Gemini API key in src/infrastructure/ai.config.js."
+      "AI suggestions are disabled until a private AI service is configured."
     );
   }
 

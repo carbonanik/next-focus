@@ -1,5 +1,6 @@
 import { fetchWithTimeout } from "./http.js";
 import { firebaseConfig, isFirebaseConfigured } from "./firebase.config.js";
+import { platformStorage } from "./platformStorage.js";
 
 const AUTH_MODE_KEY = "nextfocus_auth_mode";
 const AUTH_SESSION_KEY = "nextfocus_auth_session";
@@ -48,7 +49,7 @@ class FirebaseAuthRepository {
   }
 
   async getAccessState() {
-    const data = await chrome.storage.local.get([AUTH_MODE_KEY, AUTH_SESSION_KEY]);
+    const data = await platformStorage.local.get([AUTH_MODE_KEY, AUTH_SESSION_KEY]);
     if (data[AUTH_MODE_KEY] === MODE_GUEST) return { mode: MODE_GUEST, session: null };
     if (data[AUTH_MODE_KEY] === MODE_ACCOUNT && data[AUTH_SESSION_KEY]?.uid) return { mode: MODE_ACCOUNT, session: data[AUTH_SESSION_KEY] };
     return { mode: "none", session: null };
@@ -63,7 +64,7 @@ class FirebaseAuthRepository {
     });
     if (!response.ok) throw await parseFirebaseError(response);
     const session = toSession(await response.json());
-    await chrome.storage.local.set({ [AUTH_MODE_KEY]: MODE_ACCOUNT, [AUTH_SESSION_KEY]: session });
+    await platformStorage.local.set({ [AUTH_MODE_KEY]: MODE_ACCOUNT, [AUTH_SESSION_KEY]: session });
     return session;
   }
 
@@ -76,17 +77,17 @@ class FirebaseAuthRepository {
     });
     if (!response.ok) throw await parseFirebaseError(response);
     const session = toSession(await response.json());
-    await chrome.storage.local.set({ [AUTH_MODE_KEY]: MODE_ACCOUNT, [AUTH_SESSION_KEY]: session });
+    await platformStorage.local.set({ [AUTH_MODE_KEY]: MODE_ACCOUNT, [AUTH_SESSION_KEY]: session });
     return session;
   }
 
   async skipLogin() {
-    await chrome.storage.local.remove(AUTH_SESSION_KEY);
-    await chrome.storage.local.set({ [AUTH_MODE_KEY]: MODE_GUEST });
+    await platformStorage.local.remove(AUTH_SESSION_KEY);
+    await platformStorage.local.set({ [AUTH_MODE_KEY]: MODE_GUEST });
   }
 
   async signOut() {
-    await chrome.storage.local.remove([AUTH_MODE_KEY, AUTH_SESSION_KEY]);
+    await platformStorage.local.remove([AUTH_MODE_KEY, AUTH_SESSION_KEY]);
   }
 
   async getSession() {
@@ -110,7 +111,7 @@ class FirebaseAuthRepository {
     });
     if (!response.ok) throw await parseFirebaseError(response);
     const refreshed = { ...session, ...toSession({ ...(await response.json()), email: session.email }) };
-    await chrome.storage.local.set({ [AUTH_MODE_KEY]: MODE_ACCOUNT, [AUTH_SESSION_KEY]: refreshed });
+    await platformStorage.local.set({ [AUTH_MODE_KEY]: MODE_ACCOUNT, [AUTH_SESSION_KEY]: refreshed });
     return refreshed;
   }
 
