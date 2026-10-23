@@ -1180,6 +1180,24 @@ nav {
   gap: 16px;
 }
 
+.goal-group + .goal-group {
+  margin-top: 16px;
+}
+
+.goal-group-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.goal-group-heading h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
 .goal-card {
   border: 1px solid var(--border);
   background: var(--surface);

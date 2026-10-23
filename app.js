@@ -854,10 +854,23 @@ function renderNext(state) {
 
 function renderLater(state) {
   const goals = state.goals.filter((g) => g.status !== "DONE");
+  const priorityOrder = { PRIMARY: 0, SECONDARY: 1, NORMAL: 2 };
+  const activeGoals = goals
+    .filter((goal) => goal.status === "ACTIVE")
+    .sort((a, b) => (priorityOrder[a.priority] ?? 2) - (priorityOrder[b.priority] ?? 2));
+  const inactiveGoals = goals.filter((goal) => goal.status !== "ACTIVE");
+  const goalGroups = [
+    { id: "active", title: "Active goals", goals: activeGoals },
+    { id: "inactive", title: "Deactivated goals", goals: inactiveGoals }
+  ];
   viewEl.innerHTML = `
     <div class="section-title"><div><h2>Goals</h2><div class="muted" style="font-size:12px;margin-top:4px">Capture the outcome. Keep the next executable action obvious.</div></div><button class="btn secondary" data-create="goal">+ New Goal</button></div>
     <div class="goal-list">
-      ${goals.length ? goals.map((goal) => goalCard(goal, state.tasks)).join("") : `<div class="empty"><h2 style="color:var(--text)">What are you trying to accomplish?</h2><p>Create your first Goal.</p><button class="btn" data-create="goal">+ New Goal</button></div>`}
+      ${goals.length ? goalGroups.filter((group) => group.goals.length).map((group) => `
+        <section class="goal-group" aria-labelledby="${group.id}-goals-heading">
+          <div class="goal-group-heading"><h3 id="${group.id}-goals-heading">${group.title}</h3><span class="badge">${group.goals.length}</span></div>
+          <div class="goal-list">${group.goals.map((goal) => goalCard(goal, state.tasks)).join("")}</div>
+        </section>`).join("") : `<div class="empty"><h2 style="color:var(--text)">What are you trying to accomplish?</h2><p>Create your first Goal.</p><button class="btn" data-create="goal">+ New Goal</button></div>`}
     </div>`;
   bindCommonActions();
 }
