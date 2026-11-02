@@ -30,7 +30,7 @@ For Chrome Web Store distribution, package the extension separately and submit i
 
 The extension now has two modes:
 
-- **Account mode:** email/password authentication with Firebase Authentication. Goals, tasks, ideas and daily plans are cached locally and synced to Cloud Firestore.
+- **Account mode:** email/password authentication with Firebase Authentication. Goals, tasks, and daily plans are cached locally and synced to Cloud Firestore.
 - **Offline mode:** choose **Skip — continue offline** and the extension behaves like the original local-only build using `chrome.storage.local`.
 
 Uninstalling Chrome clears local extension storage. Account-mode data survives because it is stored in Firestore and is restored after reinstall + sign-in.
@@ -87,7 +87,6 @@ Each signed-in user gets six documents:
 ```text
 users/{uid}/data/goals
 users/{uid}/data/tasks
-users/{uid}/data/ideas
 users/{uid}/data/plans
 users/{uid}/data/journal
 users/{uid}/data/habits
@@ -95,11 +94,10 @@ users/{uid}/data/habits
 
 Each document stores that section as a versioned JSON payload. This keeps the extension's domain model independent from Firestore-specific data types.
 
-## The 5 Mental Activities
+## The 4 Mental Activities
 
-NextFocus organizes your workflow into 5 distinct mental spaces:
+NextFocus organizes your workflow into 4 distinct mental spaces:
 
-- 💭 **IDEAS** — Things I might do (fast capture, no commitment)
 - 🎯 **LATER** — Things I decided to accomplish (goals & outcomes)
 - 📥 **NEXT** — Things I have prepared to do (curated queue of max 7 executable tasks)
 - ⭐ **TODAY** — The one thing I'm doing now (one main focus task + up to 3 quick tasks)

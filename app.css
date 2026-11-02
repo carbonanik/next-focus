@@ -990,7 +990,7 @@ nav {
 }
 
 /* ==========================================================================
-   OTHER VIEWS: NEXT, LATER, JOURNAL, IDEAS, HISTORY
+   OTHER VIEWS: NEXT, LATER, JOURNAL, HISTORY
    ========================================================================== */
 
 /* Section Titles across views */
@@ -1997,35 +1997,6 @@ nav {
     align-items: flex-start;
     gap: 10px;
   }
-}
-
-/* Ideas / Hypothesis Cards */
-.idea-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.idea-card {
-  border: 1px solid var(--border);
-  background: var(--surface);
-  padding: 14px 16px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-}
-
-.idea-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.idea-notes {
-  font-size: 11px;
-  color: var(--text-muted);
-  margin-top: 4px;
 }
 
 /* History / Archival Log View */

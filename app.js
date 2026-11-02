@@ -1,6 +1,6 @@
 import {
-  addQuickTask, blockTask, completeTask, convertIdeaToGoal, createGoal, createIdea, createTask,
-  deleteGoal, deleteIdea, deleteTask, dropTask, getAppState, getJournalEntry, getRecentJournalDates, goalFrontier,
+  addQuickTask, blockTask, completeGoal, completeTask, createGoal, createTask,
+  deleteGoal, deleteTask, dropTask, getAppState, getJournalEntry, getRecentJournalDates, goalFrontier,
   goalProgress, makeToday, promoteToNext, recommendation, removeFromNext, removeQuickTask, removeToday,
   saveJournalEntry, startTask, unblockTask, updateGoal, updateTask
 } from "./src/application/taskService.js";
@@ -224,7 +224,6 @@ async function render(view = currentView) {
     later: "LATER",
     habits: "HABITS",
     journal: "JOURNAL",
-    ideas: "IDEAS",
     history: "HISTORY"
   };
   titleEl.textContent = viewTitles[view] ?? view.toUpperCase();
@@ -245,7 +244,6 @@ async function render(view = currentView) {
   if (view === "later") renderLater(state);
   if (view === "habits") renderHabits(state);
   if (view === "journal") renderJournal(state, currentJournalDate);
-  if (view === "ideas") renderIdeas(state);
   if (view === "history") renderHistory(state);
 }
 
@@ -1039,6 +1037,7 @@ function goalCard(goal, tasks) {
             class="btn small ${goal.status === "ACTIVE" ? "ghost" : "signal-filled"}"
             data-goal-action="${goal.status === "ACTIVE" ? "deactivate" : "activate"}"
             data-goal-id="${goal.id}">${goal.status === "ACTIVE" ? "Deactivate" : "Activate"}</button>
+          ${goal.status !== "DONE" ? `<button class="btn small ghost" data-goal-action="complete" data-goal-id="${goal.id}" title="Complete goal and remove its tasks from NEXT and TODAY">✓ Complete</button>` : ""}
           <button
             class="btn small secondary"
             data-goal-action="suggest"
@@ -1244,15 +1243,6 @@ function renderJournal(state, dateKey = todayKey()) {
   });
 }
 
-function renderIdeas(state) {
-  viewEl.innerHTML = `
-    <div class="section-title"><div><h2>Ideas are not commitments.</h2><div class="muted" style="font-size:12px;margin-top:4px">Capture quickly. Decide later whether an idea deserves a Goal.</div></div><button class="btn" data-create="idea">+ Capture Idea</button></div>
-    <div class="idea-list">
-      ${state.ideas.length ? state.ideas.map((idea) => `<article class="idea-card"><div class="idea-icon">◇</div><div class="grow"><div class="title">${escapeHtml(idea.title)}</div>${idea.notes ? `<div class="sub">${escapeHtml(idea.notes)}</div>` : ""}</div><div class="row-actions"><button class="btn small secondary" data-idea-action="convert" data-idea-id="${idea.id}">Make Goal</button><button class="btn small ghost" data-idea-action="delete" data-idea-id="${idea.id}">Delete</button></div></article>`).join("") : `<div class="empty"><h2 style="color:var(--text)">Have an idea?</h2><p>Capture it here without committing to it.</p><button class="btn" data-create="idea">+ Capture Idea</button></div>`}
-    </div>`;
-  bindCommonActions();
-}
-
 function doneTaskCard(task, goal) {
   const completedDate = task.completedAt ? new Date(task.completedAt) : null;
   const dateStr = completedDate ? completedDate.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" }) : "—";
@@ -1273,7 +1263,7 @@ function doneTaskCard(task, goal) {
         </div>
         <div class="row-actions">
           <button class="btn small ghost" data-task-action="info" data-task-id="${task.id}">Info</button>
-          <button class="btn small secondary" data-task-action="next" data-task-id="${task.id}" title="Re-queue back to Prepared Queue">Re-Queue</button>
+          ${goal?.status !== "DONE" ? `<button class="btn small secondary" data-task-action="next" data-task-id="${task.id}" title="Re-queue back to Prepared Queue">Re-Queue</button>` : ""}
           <button class="btn small ghost" data-task-action="edit" data-task-id="${task.id}">Edit</button>
         </div>
       </div>
@@ -1400,18 +1390,6 @@ async function openTaskDetails(taskId) {
   $("#edit-task-details").onclick = () => { closeModal(); openTaskModal(task.id); };
 }
 
-function openIdeaModal() {
-  openModal(`
-    <h2>Capture Idea</h2><p>Fast capture. No commitment.</p>
-    <form id="idea-form" class="form-grid">
-      <label class="label">Idea<input class="input" name="title" required autofocus placeholder="Build a YouTube channel about algorithms"></label>
-      <label class="label">Notes (optional)<textarea class="textarea" rows="3" name="notes"></textarea></label>
-      <div class="modal-actions"><button type="button" class="btn secondary" id="cancel-modal">Cancel</button><button class="btn" type="submit">Capture</button></div>
-    </form>`);
-  $("#cancel-modal").onclick = closeModal;
-  $("#idea-form").onsubmit = async (e) => { e.preventDefault(); await createIdea(Object.fromEntries(new FormData(e.currentTarget))); closeModal(); render("ideas"); toast("Idea captured."); };
-}
-
 async function openSearch() {
   const state = await getAppState();
   openModal(`<h2>Search</h2><p>Find goals and tasks fast.</p><input class="input" id="search-input" autofocus placeholder="Search goals and tasks..."><div class="search-results" id="search-results"></div><div class="modal-actions"><button class="btn secondary" id="cancel-modal">Close</button></div>`);
@@ -1493,7 +1471,6 @@ async function showFocus(taskId) {
 function bindCommonActions() {
   $$('[data-go]').forEach((el) => el.onclick = () => render(el.dataset.go));
   $$('[data-create="goal"]').forEach((el) => el.onclick = () => openGoalModal());
-  $$('[data-create="idea"]').forEach((el) => el.onclick = () => openIdeaModal());
   $$("[data-create-habit]").forEach((el) => el.onclick = async () => {
     try { openHabitModal(await getAppState()); }
     catch (error) { toast(error.message, true); }
@@ -1544,6 +1521,13 @@ function bindCommonActions() {
             .catch((err) => toast(err.message, true));
         }
 
+        if (el.dataset.goalAction === "complete") {
+          return completeGoal(el.dataset.goalId)
+            .then(() => render(currentView))
+            .then(() => toast("Goal completed. Its tasks were removed from NEXT and TODAY."))
+            .catch((err) => toast(err.message, true));
+        }
+
         if (el.dataset.goalAction === "toggle-collapse") {
           return toggleGoalCollapse(el.dataset.goalId).catch((err) => toast(err.message, true));
         }
@@ -1559,13 +1543,6 @@ function bindCommonActions() {
       };
     }
   );
-  $$('[data-idea-action]').forEach((el) => el.onclick = async () => {
-    try {
-      if (el.dataset.ideaAction === "convert") await convertIdeaToGoal(el.dataset.ideaId);
-      if (el.dataset.ideaAction === "delete") await deleteIdea(el.dataset.ideaId);
-      render("ideas");
-    } catch (err) { toast(err.message, true); }
-  });
   $$('[data-task-action]').forEach((el) => el.onclick = async () => {
     const id = el.dataset.taskId;
     try {
@@ -1634,7 +1611,6 @@ document.addEventListener("keydown", (e) => {
     isJournalHeatmapOpen = false;
     render("journal");
   }
-  if (key === "i") render("ideas");
   if (key === "n") openTaskModal();
   if (key === "g") openGoalModal();
   if (e.key === "Escape") closeModal();

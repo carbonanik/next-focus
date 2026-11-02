@@ -5,7 +5,6 @@ chrome.runtime.onInstalled.addListener(async () => {
       nextfocus_initialized: true,
       nextfocus_goals: [],
       nextfocus_tasks: [],
-      nextfocus_ideas: [],
       nextfocus_daily_plans: {}
     });
   }

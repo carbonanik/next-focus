@@ -113,6 +113,37 @@ export async function deleteGoal(goalId) {
   ]);
 }
 
+export async function completeGoal(goalId) {
+  const [goals, tasks, plans] = await Promise.all([
+    storageRepository.getGoals(),
+    storageRepository.getTasks(),
+    storageRepository.getPlans()
+  ]);
+  const goal = goals.find((candidate) => candidate.id === goalId);
+  if (!goal) throw new Error("Goal not found.");
+
+  goal.status = "DONE";
+  goal.completedAt = goal.completedAt ?? now();
+  const goalTaskIds = new Set(tasks.filter((task) => task.goalId === goalId).map((task) => task.id));
+
+  for (const task of tasks) {
+    if (goalTaskIds.has(task.id) && [TASK_STATUS.NEXT, TASK_STATUS.TODAY, TASK_STATUS.IN_PROGRESS].includes(task.status)) {
+      task.status = normalizeTaskStatus({ ...task, status: TASK_STATUS.READY }, tasks);
+    }
+  }
+  for (const plan of Object.values(plans)) {
+    if (goalTaskIds.has(plan.mainTaskId)) plan.mainTaskId = null;
+    plan.quickTaskIds = (plan.quickTaskIds ?? []).filter((id) => !goalTaskIds.has(id));
+  }
+
+  await Promise.all([
+    storageRepository.saveGoals(goals),
+    storageRepository.saveTasks(tasks),
+    storageRepository.savePlans(plans)
+  ]);
+  return goal;
+}
+
 export async function createTask({ title, goalId, estimatedMinutes = null, notes = "", dependencyIds = [] }) {
   const tasks = await storageRepository.getTasks();
   const task = {
@@ -151,6 +182,7 @@ export async function promoteToNext(taskId) {
   const task = tasks.find((t) => t.id === taskId);
   if (!task) throw new Error("Task not found.");
   const goal = goals.find((g) => g.id === task.goalId);
+  if (goal?.status === "DONE") throw new Error("Reopen this goal before adding its tasks to NEXT.");
   if (goal?.status === "INACTIVE") throw new Error("Activate this goal before adding its tasks to NEXT.");
   if (task.status === TASK_STATUS.BLOCKED) throw new Error("Blocked tasks cannot enter NEXT.");
   const depsReady = (task.dependencyIds ?? []).every((id) => tasks.find((t) => t.id === id)?.status === TASK_STATUS.DONE);
@@ -184,9 +216,10 @@ export async function dropTask(taskId) {
 }
 
 export async function makeToday(taskId) {
-  const [tasks, plans] = await Promise.all([storageRepository.getTasks(), storageRepository.getPlans()]);
+  const [tasks, plans, goals] = await Promise.all([storageRepository.getTasks(), storageRepository.getPlans(), storageRepository.getGoals()]);
   const task = tasks.find((t) => t.id === taskId);
   if (!task) throw new Error("Task not found.");
+  if (goals.some((goal) => goal.id === task.goalId && goal.status === "DONE")) throw new Error("Reopen this goal before adding its tasks to TODAY.");
   if (task.status === TASK_STATUS.BLOCKED) throw new Error("Blocked tasks cannot become TODAY.");
   const depsReady = (task.dependencyIds ?? []).every((id) => tasks.find((t) => t.id === id)?.status === TASK_STATUS.DONE);
   if (!depsReady) throw new Error("Complete this task's dependencies first.");
@@ -219,9 +252,10 @@ export async function removeToday(taskId) {
 }
 
 export async function addQuickTask(taskId) {
-  const [tasks, plans] = await Promise.all([storageRepository.getTasks(), storageRepository.getPlans()]);
+  const [tasks, plans, goals] = await Promise.all([storageRepository.getTasks(), storageRepository.getPlans(), storageRepository.getGoals()]);
   const task = tasks.find((t) => t.id === taskId);
   if (!task || task.status === TASK_STATUS.DONE || task.status === TASK_STATUS.BLOCKED) throw new Error("This task cannot be added as a quick task.");
+  if (goals.some((goal) => goal.id === task.goalId && goal.status === "DONE")) throw new Error("Reopen this goal before adding its tasks to TODAY.");
   const key = todayKey();
   const plan = plans[key] ?? { date: key, mainTaskId: null, quickTaskIds: [] };
   if (plan.mainTaskId === taskId) throw new Error("The main task is already on TODAY.");
@@ -294,27 +328,6 @@ export async function unblockTask(taskId) {
   task.blockedReason = "";
   task.status = normalizeTaskStatus({ ...task, status: TASK_STATUS.READY }, tasks);
   await storageRepository.saveTasks(tasks);
-}
-
-export async function createIdea({ title, notes = "" }) {
-  const ideas = await storageRepository.getIdeas();
-  const idea = { id: uid("idea"), title: title.trim(), notes: notes.trim(), createdAt: now() };
-  ideas.unshift(idea);
-  await storageRepository.saveIdeas(ideas);
-  return idea;
-}
-
-export async function deleteIdea(ideaId) {
-  const ideas = await storageRepository.getIdeas();
-  await storageRepository.saveIdeas(ideas.filter((idea) => idea.id !== ideaId));
-}
-
-export async function convertIdeaToGoal(ideaId) {
-  const ideas = await storageRepository.getIdeas();
-  const idea = ideas.find((i) => i.id === ideaId);
-  if (!idea) throw new Error("Idea not found.");
-  await createGoal({ title: idea.title, description: idea.notes || `Finished outcome for: ${idea.title}` });
-  await storageRepository.saveIdeas(ideas.filter((i) => i.id !== ideaId));
 }
 
 export function goalProgress(goalId, tasks) {
