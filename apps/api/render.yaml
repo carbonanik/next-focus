@@ -2,6 +2,7 @@ services:
   - type: web
     name: nextfocus-api
     runtime: docker
+    plan: free
     dockerfilePath: ./apps/api/Dockerfile
     dockerContext: ./apps/api
     healthCheckPath: /health
