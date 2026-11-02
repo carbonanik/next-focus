@@ -15,7 +15,7 @@ function renderAuthGate() {
     <section class="popup-auth">
       <div class="popup-auth-mark">N</div>
       <h1>Welcome to NextFocus</h1>
-      <p>Sign in to sync your data to Firebase, or continue completely offline.</p>
+      <p>Sign in to sync your data to NextFocus Cloud, or continue completely offline.</p>
       <button class="btn" id="popup-signin">Sign in</button>
       <button class="popup-skip" id="popup-skip">Skip — continue offline</button>
     </section>`;

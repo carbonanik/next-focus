@@ -1,6 +1,6 @@
 # NextFocus Landing Page
 
-Responsive single-file marketing site for NextFocus. The product screenshot is stored in `assets/dashboard.png`, and `assets/background.png` provides the landing page's textured background. The repository root redirects to this page for GitHub Pages; the landing page's **Get Started** links open `../app.html`.
+Responsive single-file marketing site for NextFocus. The product screenshot is stored in `assets/dashboard.png`, and `assets/background.png` provides the landing page's textured background. The repository root redirects to this page for GitHub Pages; the landing page's **Get Started** links open `apps/extension/app.html`.
 
 ## Preview locally
 

@@ -12,11 +12,11 @@
     <section class="auth-brand">
       <div class="brand-line"><div class="brand-mark">N</div><strong>NextFocus</strong></div>
       <h1>Keep your focus. Keep your data.</h1>
-      <p>Sign in to sync goals, tasks, and daily plans to Firebase. Or skip and keep using NextFocus completely offline.</p>
+      <p>Sign in to sync goals, tasks, habits, plans, and journal entries to NextFocus Cloud. Or skip and keep using NextFocus completely offline.</p>
       <div class="auth-points">
         <div><span>✓</span><div><strong>Cloud backup</strong><small>Reinstall and restore after signing in again.</small></div></div>
         <div><span>✓</span><div><strong>Offline-first</strong><small>Your local cache still works if the network disappears.</small></div></div>
-        <div><span>✓</span><div><strong>No lock-in</strong><small>Firebase sits behind adapters so it can be replaced with your API later.</small></div></div>
+        <div><span>✓</span><div><strong>Portable API</strong><small>FastAPI, Postgres, and Neon keep account data independent.</small></div></div>
       </div>
     </section>
 
@@ -27,8 +27,8 @@
       </div>
 
       <div id="config-warning" class="config-warning hidden">
-        <strong>Firebase setup required</strong>
-        <span>Add your Web API key and project ID in <code>src/infrastructure/firebase.config.js</code>.</span>
+        <strong>API setup required</strong>
+        <span>Set your Render API URL in <code>src/infrastructure/api.config.js</code>.</span>
       </div>
 
       <form id="auth-form">

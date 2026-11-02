@@ -27,12 +27,8 @@
     "128": "assets/icon128.png"
   },
   "host_permissions": [
-    "https://identitytoolkit.googleapis.com/*",
-    "https://securetoken.googleapis.com/*",
-    "https://firestore.googleapis.com/*",
-    "https://identitytoolkit.googleapis.com/*",
-    "https://securetoken.googleapis.com/*",
-    "https://firestore.googleapis.com/*",
+    "https://*.onrender.com/*",
+    "http://localhost/*",
     "https://generativelanguage.googleapis.com/*"
   ]
 }
