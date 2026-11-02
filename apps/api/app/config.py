@@ -18,10 +18,20 @@ class Settings(BaseSettings):
     @property
     def async_database_url(self) -> str:
         url = self.database_url.strip()
+        if len(url) >= 2 and url[0] == url[-1] and url[0] in {'"', "'"}:
+            url = url[1:-1].strip()
+        elif url.startswith(('"', "'")):
+            url = url[1:].strip()
         if url.startswith("postgres://"):
             url = "postgresql://" + url[len("postgres://"):]
         if url.startswith("postgresql://"):
             url = "postgresql+asyncpg://" + url[len("postgresql://"):]
+        elif not url.startswith("postgresql+asyncpg://"):
+            raise ValueError(
+                "DATABASE_URL must be a PostgreSQL URL beginning with "
+                "postgres://, postgresql://, or postgresql+asyncpg://. "
+                "Set the raw connection string without surrounding quotes."
+            )
 
         parts = urlsplit(url)
         query = [(key, value) for key, value in parse_qsl(parts.query) if key not in {"sslmode", "channel_binding"}]

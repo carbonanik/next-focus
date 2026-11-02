@@ -2,7 +2,7 @@ export const apiConfig = {
   baseUrl: (
     globalThis.NEXTFOCUS_API_URL ||
     globalThis.localStorage?.getItem("nextfocus_api_url") ||
-    "https://YOUR-SERVICE.onrender.com"
+    "https://nextfocus-api-v2.onrender.com"
   ).replace(/\/$/, "")
 };
 

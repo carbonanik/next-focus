@@ -45,7 +45,7 @@ Access tokens expire after 15 minutes. Store refresh tokens securely in the exte
 
 1. Create a Neon PostgreSQL database and copy its connection string.
 2. On Render, create a Web Service from this repository using `apps/api/Dockerfile`.
-3. Set `DATABASE_URL` to the Neon URL.
+3. Set `DATABASE_URL` to the raw Neon URL. Do not wrap it in quotes or include shell syntax such as `export` or `psql`.
 4. Generate a strong `JWT_SECRET` and set it in Render environment variables.
 5. Set `CORS_ORIGINS` if needed (Chrome extension origins are allowed automatically).
 6. Deploy and set the health check to `/health`.
